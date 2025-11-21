@@ -3930,7 +3930,7 @@ def is_mention(content):
 def send_instagram_message(new_message_doc, sender, receiver, message, message_type="text", is_voice_clip=False, channel_doc=None, email=None):
     try:
         access_token = get_access_token_instagram()
-        api_base = "https://graph.instagram.com/v21.0"
+        api_base = "https://graph.facebook.com/v24.0"
         instagram_profile_id = frappe.db.get_value("ClefinCode Instagram Profile", sender, "instagram_profile_id")
         endpoint = f"{api_base}/{instagram_profile_id}/messages"
 

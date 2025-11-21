@@ -405,7 +405,6 @@ def download_media(url , mime_type, message_type , file_name = None ):
 
 
 def format_html_string(input_string, button = None):
-
     is_arabic = any(is_arabic_char(char) for char in input_string)
 
     if is_arabic:
@@ -489,34 +488,28 @@ def instagram_handle():
         return instagram_webhook_handle()
         
 
-    try:
-        form_dict = frappe.local.form_dict
-        log_webhook(form_dict)
-        
-        # Extract messages from form_dict
-        messages = extract_social_messages(form_dict)
-        
-        if not messages:
+    # try:
+    if 1 == 1:
+        message = frappe.local.form_dict
+        log_webhook(message)
+
+        if not message:
             return
-        
-        message = messages[0]
         
         if "delivery" in message or "read" in message:
             return
-        
         
         if message.get("errors"):
             frappe.log_error("Error Occurred Receiving Instagram Message", message)
 
         # Determine message type and content
-        message_content = message.get("message", {}).get("text", None)
+        message_content = message.get("value").get("message", {}).get("text", None)
 
         media_url, mime_type, file_url = None, None, None
 
         sender_id, sender_profile_name = get_instagram_sender_info(message)
         
-        receiver_id = get_receiver_id(form_dict)
-
+        receiver_id = get_receiver_id(message)
 
         if not validate_instagram_receiver_profile(receiver_id):
             frappe.log_error("Invalid Receiver Profile", f"Receiver ID: {receiver_id}")
@@ -534,13 +527,19 @@ def instagram_handle():
             
 
         chat_profile = get_or_create_instagram_chat_profile(sender_id, sender_profile_name)
-    
+        print("\n\n chat profile", chat_profile)
         
-        
-        chat_channel_info = handle_instagram_chat_channel(sender_id, receiver_id, chat_profile, instagram_profile_doc, messages)
+        chat_channel_info = handle_instagram_chat_channel(sender_id, receiver_id, chat_profile, instagram_profile_doc, [message])
+        print("\n\n chat_channel_info", chat_channel_info)
         chat_channel, pending_messages = chat_channel_info
         last_sub_channel = get_last_active_sub_channel(chat_channel)["results"][0]["last_active_sub_channel"]
         
+        print("\n\n message content", message_content)
+        print("\n\n chat channel", chat_channel)
+        print("\n\n sender profile name", sender_profile_name)
+        print("\n\n sender id", sender_id)
+        print("\n\n last sub channel", last_sub_channel)
+
         response = None
         if pending_messages and pending_messages > 0:
             if message_content and message_content.lower() == "no":
@@ -551,6 +550,12 @@ def instagram_handle():
 
         # Process the message content
         if message_content:
+            print("\n\n message content", message_content)
+            print("\n\n chat channel", chat_channel)
+            print("\n\n sender profile name", sender_profile_name)
+            print("\n\n sender id", sender_id)
+            print("\n\n last sub channel", last_sub_channel)
+
             send(
                 content=format_html_string(message_content),
                 user=sender_profile_name,
@@ -570,7 +575,7 @@ def instagram_handle():
                 return
             
             mime_type = get_mime_type_from_url(media_url)
-            file_name = form_dict['entry'][0]['messaging'][0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
+            file_name = message['entry'][0]['messaging'][0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
 
             
             if attachment_type == "file":
@@ -602,14 +607,14 @@ def instagram_handle():
         elif response == "remove":
             remove_group_member(sender_id, chat_channel)
 
-    except Exception as e:
-        frappe.log_error(title="Instagram Webhook Error", message=str(e))
+    # except Exception as e:
+    #     frappe.log_error(title="Instagram Webhook Error", message=str(e))
 # ==========================================================================================
 def fetch_instagram_username(sender_id):
     """Fetch the Instagram username using the Graph API."""
     try:
         access_token = get_access_token_instagram() 
-        api_base = "https://graph.instagram.com/v21.0"
+        api_base = "https://graph.facebook.com/v24.0"
         endpoint = f"{api_base}/{sender_id}"
         
         params = {
@@ -630,7 +635,7 @@ def fetch_instagram_username(sender_id):
 # ==========================================================================================
 def get_instagram_sender_info(message):
     try:
-        sender_id = message["sender"]["id"]
+        sender_id = message["value"]["sender"]["id"]
         sender_profile_name = fetch_instagram_username(sender_id)
         return sender_id, sender_profile_name
 
@@ -640,7 +645,6 @@ def get_instagram_sender_info(message):
 # ==========================================================================================
 def get_or_create_instagram_chat_profile(sender_id, sender_profile_name):
     chat_profile = check_if_chat_profile_exists(sender_id)
-
     if not chat_profile:
         contact = create_instagram_contact(sender_id, sender_profile_name)
         chat_profile = frappe.db.get_value("ClefinCode Chat Profile", {"contact": contact}, "name")
@@ -648,8 +652,8 @@ def get_or_create_instagram_chat_profile(sender_id, sender_profile_name):
 # ==========================================================================================
 def get_receiver_id(form_dict):
     """Extracts receiver ID from webhook data."""
-    entry = form_dict['entry'][0]['messaging'][0]
-    return entry['recipient']['id']
+    entry = form_dict["value"]
+    return entry["recipient"]["id"]
 # ==========================================================================================
 def validate_instagram_receiver_profile(receiver_id):
     """Validates if a ClefinCode Chat Profile exists based on receiver_id matching contact_info or name."""
@@ -666,7 +670,7 @@ def validate_instagram_receiver_profile(receiver_id):
 
         # If not found, try in Instagram Profile
         profile = frappe.db.get_value(
-            "ClefinCode Instagram Profile",
+            "ClefinCode  Profile",
             {"name": receiver_id},
             "name" 
         )
@@ -751,20 +755,20 @@ def create_instagram_direct_channel(chat_profile, receiver_user_email, instagram
         build_instagram_recipient_gateway(chat_profile, instagram_profile_doc, sender_id)
     ]
     
-    message_content = messages[0].get("message", {}).get("text", None)
+    message_content = messages[0].get("value", {}).get("message", {}).get("text", None)
     
     if message_content:
         return create_channel(
             get_profile_full_name(sender_id),
             json.dumps(recipients_list),
             "Direct",
-            format_html_string(messages[0]["message"]["text"]),
+            format_html_string(messages[0]["value"]["message"]["text"]),
             receiver_user_email,
             channel_name
         )["results"][0]["room"]
-        
-    else :
-        attachments = messages[0]["message"]["attachments"]
+
+    elif "attachments" in messages[0].get("value", {}).get("message", {}):
+        attachments = messages[0]["value"]["message"]["attachments"]
 
         # Extract attachment type and media URL and mime type
         attachment_type = attachments[0].get("type", "")
@@ -773,7 +777,7 @@ def create_instagram_direct_channel(chat_profile, receiver_user_email, instagram
             return
         
         mime_type = get_mime_type_from_url(media_url)
-        file_name = messages[0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
+        file_name = messages[0]["value"]["message"]["attachments"][0]["payload"]["url"].split('/')[-1].split('?')[0]
 
         
         if attachment_type == "file":
@@ -842,14 +846,9 @@ def messenger_handle():
         return messenger_webhook_handle()
 
     try:
-        form_dict = frappe.local.form_dict
-        log_webhook(form_dict)
-        # Extract messages from form_dict
-        messages = extract_social_messages(form_dict)
-        if not messages:
-            return
-        message = messages[0]
-        
+        message = frappe.local.form_dict
+        log_webhook(message)
+                
         if "delivery" in message or "read" in message:
             return
         
@@ -857,13 +856,12 @@ def messenger_handle():
             frappe.log_error("Error Occurred Receiving Messenger Message", message)
 
         # Determine message type and content
-        message_content = message.get("message", {}).get("text", None)
-
+        message_content = message["value"]["message"]["text"]
 
         media_url, mime_type, file_url = None, None, None
 
         sender_id, sender_profile_name = get_messenger_sender_info(message)
-        receiver_id = get_receiver_id(form_dict)
+        receiver_id = get_receiver_id(message)
 
         if not validate_messenger_receiver_profile(receiver_id):
             frappe.log_error("Invalid Receiver Profile", f"Receiver ID: {receiver_id}")
@@ -881,7 +879,7 @@ def messenger_handle():
             
             
         chat_profile = get_or_create_messenger_chat_profile(sender_id, sender_profile_name)
-        chat_channel_info = handle_messenger_chat_channel(sender_id, receiver_id, chat_profile, messenger_profile_doc, messages)
+        chat_channel_info = handle_messenger_chat_channel(sender_id, receiver_id, chat_profile, messenger_profile_doc, [message])
         chat_channel, pending_messages = chat_channel_info
         last_sub_channel = get_last_active_sub_channel(chat_channel)["results"][0]["last_active_sub_channel"]
         
@@ -895,6 +893,12 @@ def messenger_handle():
 
         # Process the message content
         if message_content:
+            print("\n\n message content", message_content)
+            print("\n\n chat channel", chat_channel)
+            print("\n\n sender profile name", sender_profile_name)
+            print("\n\n sender id", sender_id)
+            print("\n\n last sub channel", last_sub_channel)
+            
             send(
                 content=format_html_string(message_content),
                 user=sender_profile_name,
@@ -914,7 +918,7 @@ def messenger_handle():
                 return
             
             mime_type = get_mime_type_from_url(media_url)
-            file_name = form_dict['entry'][0]['messaging'][0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
+            file_name = message['entry'][0]['messaging'][0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
 
             
             if attachment_type == "file":
@@ -949,6 +953,9 @@ def messenger_handle():
 
     except Exception as e:
         frappe.log_error(title="Messenger Webhook Error", message=str(e))
+
+
+
 # ==========================================================================================
 def extract_social_messages(form_dict):
     """Extracts messages from the form_dict."""
@@ -972,7 +979,7 @@ def fetch_messenger_username(sender_id):
     """Fetch the Messenger username using the Graph API."""
     try:
         access_token = get_access_token_messenger() 
-        api_base = "https://graph.facebook.com/v17.0"
+        api_base = "https://graph.facebook.com/v24.0"
         endpoint = f"{api_base}/{sender_id}"
         
         params = {
@@ -992,8 +999,8 @@ def fetch_messenger_username(sender_id):
 # ==========================================================================================
 def get_messenger_sender_info(message):
     try:
-        sender_id = message["sender"]["id"]
-        sender_profile_name = fetch_messenger_username(sender_id)
+        sender_id = message["value"]["sender"]["id"]
+        sender_profile_name = fetch_instagram_username(sender_id)
         return sender_id, sender_profile_name
 
     except KeyError as e:
@@ -1109,20 +1116,21 @@ def create_messenger_direct_channel(chat_profile, receiver_user_email, messenger
         build_chat_recipients(get_profile_id(receiver_user_email)),
         build_messenger_recipient_gateway(chat_profile, messenger_profile_doc, sender_id)
     ]
-    message_content = messages[0].get("message", {}).get("text", None)
+    message_content = messages[0].get("value", {}).get("message", {}).get("text", None)
+    print("\n\n message content 11", message_content)
     
     if message_content:
         return create_channel(
             get_profile_full_name(sender_id),
             json.dumps(recipients_list),
             "Direct",
-            format_html_string(messages[0]["message"]["text"]),
+            format_html_string(messages[0]["value"]["message"]["text"]),
             receiver_user_email,
             channel_name
         )["results"][0]["room"]
-        
-    else :
-        attachments = messages[0]["message"]["attachments"]
+
+    elif "attachments" in messages[0].get("value", {}).get("message", {}):
+        attachments = messages[0]["value"]["message"]["attachments"]
         # Extract attachment type and media URL and mime type
         attachment_type = attachments[0].get("type", "")
         media_url = attachments[0]["payload"]["url"]
@@ -1130,7 +1138,7 @@ def create_messenger_direct_channel(chat_profile, receiver_user_email, messenger
             return
         
         mime_type = get_mime_type_from_url(media_url)
-        file_name = messages[0]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
+        file_name = messages[0]["value"]['message']['attachments'][0]['payload']['url'].split('/')[-1].split('?')[0]
 
         if attachment_type == "file":
             attachment_type = "document"
@@ -1146,6 +1154,8 @@ def create_messenger_direct_channel(chat_profile, receiver_user_email, messenger
             receiver_user_email,
             channel_name
         )["results"][0]["room"]
+    else:
+        frappe.log_error("No valid message content found for Messenger direct channel creation", str(messages))
 # ==========================================================================================
 def messenger_webhook_handle():
     """Handles the initial webhook verification."""
