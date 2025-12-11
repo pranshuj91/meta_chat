@@ -465,7 +465,14 @@ def calculate_unread_messages_for_guest(channel,token):
 @frappe.whitelist()
 def create_channel(channel_name , users, type , last_message , creator_email , creator , creation_date = None):  
     # only for Direct chat 
+    print("\n\n channel name 1", channel_name)
+    print("\n\n users", users)
+    print("\n\n type", type)
+    print("\n\n last message", last_message)
+    print("\n\n creator email", creator_email)
+    print("\n\n creator", creator)
     creation_date = datetime.datetime.utcnow()
+    print("\n\n creation date", creation_date)
     room_doc = frappe.get_doc({
         'doctype': 'ClefinCode Chat Channel',
         'channel_name' : channel_name,
@@ -1030,7 +1037,7 @@ def get_all_sub_channels_for_contributor(parent_channel , user_email):
 ######################################## Messages ###########################################
 #############################################################################################
 @frappe.whitelist()
-def send(content, user, room , email, send_date = None , is_first_message = 0, attachment = None , sub_channel = None , is_link = None , is_media = None , is_document = None, is_voice_clip = None , file_id = None , message_type = "" , message_template_type= "", only_receive_by = None , id_message_local_from_app = None, chat_topic = None, is_screenshot = 0):
+def send(content, user, room , email, send_date = None , is_first_message = 0, attachment = None , sub_channel = None , is_link = None , is_media = None , is_document = None, is_voice_clip = None , file_id = None , message_type = "" , message_template_type= "", only_receive_by = None , id_message_local_from_app = None, chat_topic = None, is_screenshot = 0, sync=0, msg_id="", time=None, send_or_received=None, platform=""):
     try:
         from packaging import version
         # Get current Frappe version
@@ -1047,7 +1054,17 @@ def send(content, user, room , email, send_date = None , is_first_message = 0, a
         file_type = ''
         if attachment:
             file_type = get_file_type(attachment)
-        send_date = datetime.datetime.utcnow()
+        
+        send_date = datetime.datetime.utcnow() if sync == 0 else time if time else datetime.datetime.utcnow()
+
+        if platform == "Instagram":
+            if frappe.db.get_value("ClefinCode Chat Message", {"instagram_message_id": msg_id, "chat_channel": room}):
+                return {"results" : [{"new_message_name": new_message.name}]}
+            
+        if platform == "Facebook":
+            if frappe.db.get_value("ClefinCode Chat Message", {"messenger_message_id": msg_id, "chat_channel": room}):
+                return {"results" : [{"new_message_name": new_message.name}]}
+        
         new_message = frappe.get_doc(
             {
                 "doctype": "ClefinCode Chat Message",
@@ -1073,7 +1090,14 @@ def send(content, user, room , email, send_date = None , is_first_message = 0, a
                 "chat_topic": chat_topic
             }
         ).insert(ignore_permissions=True)
-        
+        frappe.db.commit()
+    
+        if sync==1 and send_or_received=="Received" and platform=="Instagram":
+            new_message.instagram_message_id = msg_id
+            new_message.save(ignore_permissions = True)
+        elif sync==1 and send_or_received=="Received" and platform=="Facebook":
+            new_message.messenger_message_id = msg_id
+            new_message.save(ignore_permissions = True)
         
         if is_screenshot == "1":  
             content = extract_images_from_html(new_message, content, True)
@@ -1164,10 +1188,13 @@ def send(content, user, room , email, send_date = None , is_first_message = 0, a
             "message_template_type": message_template_type,
             "avatar_url": channel_doc.channel_image,
             "utc_message_date" : send_date,
-            "platform": platform 
+            "platform": platform ,
+            "instagram_message_id": new_message.instagram_message_id,
+            "messenger_message_id": new_message.messenger_message_id,
         }
 
         frappe.db.set_value("ClefinCode Chat Profile", get_profile_id(email), "last_active", send_date)
+        frappe.db.commit()
         frappe.publish_realtime(event= "update_last_active", message=results)
         
         if id_message_local_from_app:
@@ -1227,6 +1254,9 @@ def send(content, user, room , email, send_date = None , is_first_message = 0, a
         
         else:
             for member in channel_doc.members:
+                print("\n\n meber user", member.user , "\n\n")
+
+                print("\n\nemail", email)
                 if member.is_removed == 0 and member.platform == "Chat":
                     if share_everyone == 0: share_doctype("ClefinCode Chat Message", new_message.name, member.user)
                     results["room"] = room
@@ -1244,11 +1274,12 @@ def send(content, user, room , email, send_date = None , is_first_message = 0, a
                     if member.pending_messages >= 1:
                         frappe.db.set_value('ClefinCode Chat Channel User', member.name, 'pending_messages', member.pending_messages +1)
                 elif member.platform == "Instagram" and str(email) != str(member.user) and message_template_type not in ["Rename Group" , "Send Confirmation"]  and not is_mention(content) and member.is_removed == 0:
-                    process_instagram_message(member.platform_gateway, member.user , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot)
+                    print("\n\n process instagram")
+                    process_instagram_message(member.platform_gateway, member.user , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot, sync, msg_id)
                     if member.pending_messages >= 1:
                         frappe.db.set_value('ClefinCode Chat Channel User', member.name, 'pending_messages', member.pending_messages +1)
                 elif member.platform == "Messenger" and str(email) != (member.user) and message_template_type not in ["Rename Group" , "Send Confirmation"]  and not is_mention(content) and member.is_removed == 0:
-                    process_messenger_message(member.platform_gateway, member.user , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot)
+                    process_messenger_message(member.platform_gateway, member.user , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot, sync, msg_id)
                     if member.pending_messages >= 1:
                         frappe.db.set_value('ClefinCode Chat Channel User', member.name, 'pending_messages', member.pending_messages +1)   
                 elif member.platform == "Telegram" and str(email) != str(member.user) and message_template_type not in ["Rename Group" , "Send Confirmation"]  and not is_mention(content) and member.is_removed == 0:
@@ -2814,6 +2845,7 @@ def get_profile_full_name(user_email):
       AND ContactDetails.contact_info = '{user_email}'
     """, as_dict=True)
 
+    print("\n\n fullname", full_names)
     if full_names:
         if len(full_names) == 1:
             return full_names[0].full_name
@@ -2826,7 +2858,7 @@ def get_profile_full_name(user_email):
             return full_names[0].full_name
     else:
         profile_name =  get_contact_profile_full_name(user_email)
-        
+        print("\n\n profile name", profile_name)
         if profile_name:
             return profile_name
         else:
@@ -3927,8 +3959,20 @@ def is_mention(content):
 ######################################## Instagram Functions #################################
 #############################################################################################
 @frappe.whitelist()
-def send_instagram_message(new_message_doc, sender, receiver, message, message_type="text", is_voice_clip=False, channel_doc=None, email=None):
+def send_instagram_message(new_message_doc, sender, receiver, message, message_type="text", is_voice_clip=False, channel_doc=None, email=None, sync=0,msg_id=""):
     try:
+
+        print("\n\n new message doc", new_message_doc)
+        print("\n\n sender", sender)
+        print("\n\n receiver", receiver)
+        print("\n\n message", message)
+        print("\n\n message_type", message_type)
+        print("\n\n is_voice_clip", is_voice_clip)
+        print("\n\n channel_doc", channel_doc)
+        print("\n\n email", email)
+        print("\n\n sync", sync)
+        print("\n\n msg_id", msg_id)
+
         access_token = get_access_token_instagram()
         api_base = "https://graph.facebook.com/v24.0"
         instagram_profile_id = frappe.db.get_value("ClefinCode Instagram Profile", sender, "instagram_profile_id")
@@ -3991,19 +4035,27 @@ def send_instagram_message(new_message_doc, sender, receiver, message, message_t
             send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")
 
         # Send the request
-        response = requests.post(endpoint, json=payload, headers=headers)
+        if sync==0:
+            response = requests.post(endpoint, json=payload, headers=headers)
+            if response.ok:
+                new_message_doc.instagram_message_id = response.json().get("id")
+                new_message_doc.save(ignore_permissions=True)
+                frappe.db.commit()
 
-        if response.ok:
-            new_message_doc.instagram_message_id = response.json().get("id")
+                if was_private:
+                    reset_file_to_private(media_url)
+            else:
+                content = '<div class="handle-error-whatsapp" data-template="handle_error_whatsapp"><p style="color:#0089FF">You can no longer send a message to this receiver because 24 hours have passed since their last message. Please wait for the receiver to send you a new message to reopen the conversation window.</p></div>'
+                send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")                
+                frappe.log_error("Failed to send Instagram message", response.text)
+        else:
+            new_message_doc.instagram_message_id = msg_id
             new_message_doc.save(ignore_permissions=True)
             frappe.db.commit()
+            print("\n\n send sync 0")
 
             if was_private:
                 reset_file_to_private(media_url)
-        else:
-            content = '<div class="handle-error-whatsapp" data-template="handle_error_whatsapp"><p style="color:#0089FF">You can no longer send a message to this receiver because 24 hours have passed since their last message. Please wait for the receiver to send you a new message to reopen the conversation window.</p></div>'
-            send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")                
-            frappe.log_error("Failed to send Instagram message", response.text)
 
     except Exception as e:
         frappe.log_error("Instagram Message Exception", str(e))
@@ -4133,7 +4185,8 @@ def get_instagram_channel(instagram_system_id, instagram_user_id):
     if results:
         return results[0].name
 # ====================================================================================
-def process_instagram_message(platform_gateway, instagram_customer_id , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot):
+def process_instagram_message(platform_gateway, instagram_customer_id , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot, sync=0,msg_id=""):
+    print("\n\n yeee ==========================================\n\n")
     responder_user_profile = get_profile_id(email)
     message = None
     is_group_message = (channel_doc.type == "Group" and 
@@ -4153,7 +4206,7 @@ def process_instagram_message(platform_gateway, instagram_customer_id , email, c
             message = f"*{get_chat_profile_first_name(responder_user_profile)}*:\n{BeautifulSoup(content, 'html.parser').get_text()}"
         else:
             message = BeautifulSoup(content, 'html.parser').get_text()
-    send_instagram_message(new_message, platform_gateway, instagram_customer_id , message, file_type if file_type in ["image", "video", "audio", "document"] else "text", is_voice_clip, channel_doc, email)
+    send_instagram_message(new_message, platform_gateway, instagram_customer_id , message, file_type if file_type in ["image", "video", "audio", "document"] else "text", is_voice_clip, channel_doc, email, sync, msg_id)
 # ==========================================================================================
 @frappe.whitelist()
 def get_contact_profile_full_name(sender_id):
@@ -4170,13 +4223,13 @@ def get_contact_profile_full_name(sender_id):
 ######################################## Messenger Functions ################################
 #############################################################################################
 @frappe.whitelist()
-def send_messenger_message(new_message_doc, sender, receiver, message, message_type="text", is_voice_clip=False, channel_doc=None, email=None):
+def send_messenger_message(new_message_doc, sender, receiver, message, message_type="text", is_voice_clip=False, channel_doc=None, email=None, sync=0,msg_id=""):
     try:
         # if message_type == "document":
         #     frappe.throw(f"Failed to send message, message type {message_type} is not supported for Messenger platform.")
 
         access_token = get_access_token_messenger()
-        api_base = "https://graph.facebook.com/v21.0"
+        api_base = "https://graph.facebook.com/v24.0"
         messenger_profile_id = frappe.db.get_value("ClefinCode Facebook Messenger Profile", sender, "messenger_profile_id")
 
         endpoint = f"{api_base}/{messenger_profile_id}/messages"
@@ -4240,22 +4293,30 @@ def send_messenger_message(new_message_doc, sender, receiver, message, message_t
             content = f'<div class="handle-error-whatsapp" data-template="handle_error_whatsapp"><p style="color:#0089FF">Messenger does not support message type: {message_type}</p></div>'
             send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")
             
-            
-        # Send the request
-        response = requests.post(endpoint, json=payload, headers=headers)
+        if sync==0:
+            # Send the request
+            response = requests.post(endpoint, json=payload, headers=headers)
 
-        if response.ok:
-            new_message_doc.messenger_message_id = response.json().get("id")
+            if response.ok:
+                new_message_doc.messenger_message_id = response.json().get("id")
+                new_message_doc.save(ignore_permissions=True)
+                frappe.db.commit()
+
+                # Reset file to private if applicable
+                if was_private:
+                    reset_file_to_private(media_url)
+            else:
+                content = '<div class="handle-error-whatsapp" data-template="handle_error_whatsapp"><p style="color:#0089FF">You can no longer send a message to this receiver because 24 hours have passed since their last message. Please wait for the receiver to send you a new message to reopen the conversation window.</p></div>'
+                send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")
+                frappe.log_error("Failed to send Messenger message", response.text)
+        else:
+            new_message_doc.messenger_message_id = msg_id
             new_message_doc.save(ignore_permissions=True)
             frappe.db.commit()
 
             # Reset file to private if applicable
             if was_private:
                 reset_file_to_private(media_url)
-        else:
-            content = '<div class="handle-error-whatsapp" data-template="handle_error_whatsapp"><p style="color:#0089FF">You can no longer send a message to this receiver because 24 hours have passed since their last message. Please wait for the receiver to send you a new message to reopen the conversation window.</p></div>'
-            send(content = content, user = sender, room = channel_doc.name, email = email, message_type = "information", message_template_type = "Send Confirmation")
-            frappe.log_error("Failed to send Messenger message", response.text)
 
     except Exception as e:
         frappe.log_error("Messenger Message Exception", str(e))
@@ -4288,7 +4349,7 @@ def get_messenger_channel(messenger_system_id, messenger_user_id):
     if results:
         return results[0].name
 # ====================================================================================
-def process_messenger_message(platform_gateway, messenger_customer_id , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot):    
+def process_messenger_message(platform_gateway, messenger_customer_id , email, channel_doc, last_responder_user, new_message, file_type, attachment, content, is_voice_clip, is_screenshot, sync=0, msg_id=""):    
     responder_user_profile = get_profile_id(email)
     message = None
     is_group_message = (channel_doc.type == "Group" and 
@@ -4308,7 +4369,7 @@ def process_messenger_message(platform_gateway, messenger_customer_id , email, c
             message = f"*{get_chat_profile_first_name(responder_user_profile)}*:\n{BeautifulSoup(content, 'html.parser').get_text()}"
         else:
             message = BeautifulSoup(content, 'html.parser').get_text()
-    send_messenger_message(new_message, platform_gateway, messenger_customer_id , message, file_type if file_type in ["image", "video", "audio", "document"] else "text", is_voice_clip, channel_doc, email)
+    send_messenger_message(new_message, platform_gateway, messenger_customer_id , message, file_type if file_type in ["image", "video", "audio", "document"] else "text", is_voice_clip, channel_doc, email, sync, msg_id)
 # ==========================================================================================
 def auto_fill_contact_platform(doc, method):        
     if doc.social_contact and doc.social_contact[0].platform:

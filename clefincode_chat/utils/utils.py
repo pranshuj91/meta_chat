@@ -154,17 +154,22 @@ def check_template_status(message_template):
         return False
     
     return True
+from frappe.utils.password import get_decrypted_password
 # ============================================================================================================
 def get_access_token_instagram():
-    doc = frappe.get_doc("ClefinCode Instagram Integration")
-    access_token = doc.get_password("access_token")
+    # doc = frappe.get_doc("ClefinCode Instagram Integration")
+    # access_token = doc.get_password("access_token")
+
+    access_token = get_decrypted_password("Meta Settings", "Meta Settings", "page_access_token")
     if not access_token:
         frappe.throw("Access Token doesn't exist")
     return access_token
 # ============================================================================================================
 def get_access_token_messenger():
-    doc = frappe.get_doc("ClefinCode Facebook Messenger Integration")
-    access_token = doc.get_password("access_token")
+    # doc = frappe.get_doc("ClefinCode Facebook Messenger Integration")
+    # access_token = doc.get_password("access_token")
+
+    access_token = get_decrypted_password("Meta Settings", "Meta Settings", "page_access_token")
     if not access_token:
         frappe.throw("Access Token doesn't exist")
     return access_token

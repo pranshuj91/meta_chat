@@ -28,11 +28,2148 @@
     mod
   ));
 
+  // node_modules/localforage/dist/localforage.js
+  var require_localforage = __commonJS({
+    "node_modules/localforage/dist/localforage.js"(exports2, module2) {
+      (function(f) {
+        if (typeof exports2 === "object" && typeof module2 !== "undefined") {
+          module2.exports = f();
+        } else if (typeof define === "function" && define.amd) {
+          define([], f);
+        } else {
+          var g;
+          if (typeof window !== "undefined") {
+            g = window;
+          } else if (typeof global !== "undefined") {
+            g = global;
+          } else if (typeof self !== "undefined") {
+            g = self;
+          } else {
+            g = this;
+          }
+          g.localforage = f();
+        }
+      })(function() {
+        var define2, module3, exports3;
+        return function e(t, n, r) {
+          function s(o2, u) {
+            if (!n[o2]) {
+              if (!t[o2]) {
+                var a = typeof __require == "function" && __require;
+                if (!u && a)
+                  return a(o2, true);
+                if (i)
+                  return i(o2, true);
+                var f = new Error("Cannot find module '" + o2 + "'");
+                throw f.code = "MODULE_NOT_FOUND", f;
+              }
+              var l = n[o2] = { exports: {} };
+              t[o2][0].call(l.exports, function(e2) {
+                var n2 = t[o2][1][e2];
+                return s(n2 ? n2 : e2);
+              }, l, l.exports, e, t, n, r);
+            }
+            return n[o2].exports;
+          }
+          var i = typeof __require == "function" && __require;
+          for (var o = 0; o < r.length; o++)
+            s(r[o]);
+          return s;
+        }({ 1: [function(_dereq_, module4, exports4) {
+          (function(global2) {
+            "use strict";
+            var Mutation = global2.MutationObserver || global2.WebKitMutationObserver;
+            var scheduleDrain;
+            {
+              if (Mutation) {
+                var called = 0;
+                var observer = new Mutation(nextTick);
+                var element = global2.document.createTextNode("");
+                observer.observe(element, {
+                  characterData: true
+                });
+                scheduleDrain = function() {
+                  element.data = called = ++called % 2;
+                };
+              } else if (!global2.setImmediate && typeof global2.MessageChannel !== "undefined") {
+                var channel = new global2.MessageChannel();
+                channel.port1.onmessage = nextTick;
+                scheduleDrain = function() {
+                  channel.port2.postMessage(0);
+                };
+              } else if ("document" in global2 && "onreadystatechange" in global2.document.createElement("script")) {
+                scheduleDrain = function() {
+                  var scriptEl = global2.document.createElement("script");
+                  scriptEl.onreadystatechange = function() {
+                    nextTick();
+                    scriptEl.onreadystatechange = null;
+                    scriptEl.parentNode.removeChild(scriptEl);
+                    scriptEl = null;
+                  };
+                  global2.document.documentElement.appendChild(scriptEl);
+                };
+              } else {
+                scheduleDrain = function() {
+                  setTimeout(nextTick, 0);
+                };
+              }
+            }
+            var draining;
+            var queue = [];
+            function nextTick() {
+              draining = true;
+              var i, oldQueue;
+              var len = queue.length;
+              while (len) {
+                oldQueue = queue;
+                queue = [];
+                i = -1;
+                while (++i < len) {
+                  oldQueue[i]();
+                }
+                len = queue.length;
+              }
+              draining = false;
+            }
+            module4.exports = immediate;
+            function immediate(task) {
+              if (queue.push(task) === 1 && !draining) {
+                scheduleDrain();
+              }
+            }
+          }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+        }, {}], 2: [function(_dereq_, module4, exports4) {
+          "use strict";
+          var immediate = _dereq_(1);
+          function INTERNAL() {
+          }
+          var handlers = {};
+          var REJECTED = ["REJECTED"];
+          var FULFILLED = ["FULFILLED"];
+          var PENDING = ["PENDING"];
+          module4.exports = Promise2;
+          function Promise2(resolver) {
+            if (typeof resolver !== "function") {
+              throw new TypeError("resolver must be a function");
+            }
+            this.state = PENDING;
+            this.queue = [];
+            this.outcome = void 0;
+            if (resolver !== INTERNAL) {
+              safelyResolveThenable(this, resolver);
+            }
+          }
+          Promise2.prototype["catch"] = function(onRejected) {
+            return this.then(null, onRejected);
+          };
+          Promise2.prototype.then = function(onFulfilled, onRejected) {
+            if (typeof onFulfilled !== "function" && this.state === FULFILLED || typeof onRejected !== "function" && this.state === REJECTED) {
+              return this;
+            }
+            var promise = new this.constructor(INTERNAL);
+            if (this.state !== PENDING) {
+              var resolver = this.state === FULFILLED ? onFulfilled : onRejected;
+              unwrap(promise, resolver, this.outcome);
+            } else {
+              this.queue.push(new QueueItem(promise, onFulfilled, onRejected));
+            }
+            return promise;
+          };
+          function QueueItem(promise, onFulfilled, onRejected) {
+            this.promise = promise;
+            if (typeof onFulfilled === "function") {
+              this.onFulfilled = onFulfilled;
+              this.callFulfilled = this.otherCallFulfilled;
+            }
+            if (typeof onRejected === "function") {
+              this.onRejected = onRejected;
+              this.callRejected = this.otherCallRejected;
+            }
+          }
+          QueueItem.prototype.callFulfilled = function(value) {
+            handlers.resolve(this.promise, value);
+          };
+          QueueItem.prototype.otherCallFulfilled = function(value) {
+            unwrap(this.promise, this.onFulfilled, value);
+          };
+          QueueItem.prototype.callRejected = function(value) {
+            handlers.reject(this.promise, value);
+          };
+          QueueItem.prototype.otherCallRejected = function(value) {
+            unwrap(this.promise, this.onRejected, value);
+          };
+          function unwrap(promise, func, value) {
+            immediate(function() {
+              var returnValue;
+              try {
+                returnValue = func(value);
+              } catch (e) {
+                return handlers.reject(promise, e);
+              }
+              if (returnValue === promise) {
+                handlers.reject(promise, new TypeError("Cannot resolve promise with itself"));
+              } else {
+                handlers.resolve(promise, returnValue);
+              }
+            });
+          }
+          handlers.resolve = function(self2, value) {
+            var result = tryCatch(getThen, value);
+            if (result.status === "error") {
+              return handlers.reject(self2, result.value);
+            }
+            var thenable = result.value;
+            if (thenable) {
+              safelyResolveThenable(self2, thenable);
+            } else {
+              self2.state = FULFILLED;
+              self2.outcome = value;
+              var i = -1;
+              var len = self2.queue.length;
+              while (++i < len) {
+                self2.queue[i].callFulfilled(value);
+              }
+            }
+            return self2;
+          };
+          handlers.reject = function(self2, error) {
+            self2.state = REJECTED;
+            self2.outcome = error;
+            var i = -1;
+            var len = self2.queue.length;
+            while (++i < len) {
+              self2.queue[i].callRejected(error);
+            }
+            return self2;
+          };
+          function getThen(obj) {
+            var then = obj && obj.then;
+            if (obj && (typeof obj === "object" || typeof obj === "function") && typeof then === "function") {
+              return function appyThen() {
+                then.apply(obj, arguments);
+              };
+            }
+          }
+          function safelyResolveThenable(self2, thenable) {
+            var called = false;
+            function onError(value) {
+              if (called) {
+                return;
+              }
+              called = true;
+              handlers.reject(self2, value);
+            }
+            function onSuccess(value) {
+              if (called) {
+                return;
+              }
+              called = true;
+              handlers.resolve(self2, value);
+            }
+            function tryToUnwrap() {
+              thenable(onSuccess, onError);
+            }
+            var result = tryCatch(tryToUnwrap);
+            if (result.status === "error") {
+              onError(result.value);
+            }
+          }
+          function tryCatch(func, value) {
+            var out = {};
+            try {
+              out.value = func(value);
+              out.status = "success";
+            } catch (e) {
+              out.status = "error";
+              out.value = e;
+            }
+            return out;
+          }
+          Promise2.resolve = resolve;
+          function resolve(value) {
+            if (value instanceof this) {
+              return value;
+            }
+            return handlers.resolve(new this(INTERNAL), value);
+          }
+          Promise2.reject = reject;
+          function reject(reason) {
+            var promise = new this(INTERNAL);
+            return handlers.reject(promise, reason);
+          }
+          Promise2.all = all;
+          function all(iterable) {
+            var self2 = this;
+            if (Object.prototype.toString.call(iterable) !== "[object Array]") {
+              return this.reject(new TypeError("must be an array"));
+            }
+            var len = iterable.length;
+            var called = false;
+            if (!len) {
+              return this.resolve([]);
+            }
+            var values = new Array(len);
+            var resolved = 0;
+            var i = -1;
+            var promise = new this(INTERNAL);
+            while (++i < len) {
+              allResolver(iterable[i], i);
+            }
+            return promise;
+            function allResolver(value, i2) {
+              self2.resolve(value).then(resolveFromAll, function(error) {
+                if (!called) {
+                  called = true;
+                  handlers.reject(promise, error);
+                }
+              });
+              function resolveFromAll(outValue) {
+                values[i2] = outValue;
+                if (++resolved === len && !called) {
+                  called = true;
+                  handlers.resolve(promise, values);
+                }
+              }
+            }
+          }
+          Promise2.race = race;
+          function race(iterable) {
+            var self2 = this;
+            if (Object.prototype.toString.call(iterable) !== "[object Array]") {
+              return this.reject(new TypeError("must be an array"));
+            }
+            var len = iterable.length;
+            var called = false;
+            if (!len) {
+              return this.resolve([]);
+            }
+            var i = -1;
+            var promise = new this(INTERNAL);
+            while (++i < len) {
+              resolver(iterable[i]);
+            }
+            return promise;
+            function resolver(value) {
+              self2.resolve(value).then(function(response) {
+                if (!called) {
+                  called = true;
+                  handlers.resolve(promise, response);
+                }
+              }, function(error) {
+                if (!called) {
+                  called = true;
+                  handlers.reject(promise, error);
+                }
+              });
+            }
+          }
+        }, { "1": 1 }], 3: [function(_dereq_, module4, exports4) {
+          (function(global2) {
+            "use strict";
+            if (typeof global2.Promise !== "function") {
+              global2.Promise = _dereq_(2);
+            }
+          }).call(this, typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {});
+        }, { "2": 2 }], 4: [function(_dereq_, module4, exports4) {
+          "use strict";
+          var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function(obj) {
+            return typeof obj;
+          } : function(obj) {
+            return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+          };
+          function _classCallCheck(instance, Constructor) {
+            if (!(instance instanceof Constructor)) {
+              throw new TypeError("Cannot call a class as a function");
+            }
+          }
+          function getIDB() {
+            try {
+              if (typeof indexedDB !== "undefined") {
+                return indexedDB;
+              }
+              if (typeof webkitIndexedDB !== "undefined") {
+                return webkitIndexedDB;
+              }
+              if (typeof mozIndexedDB !== "undefined") {
+                return mozIndexedDB;
+              }
+              if (typeof OIndexedDB !== "undefined") {
+                return OIndexedDB;
+              }
+              if (typeof msIndexedDB !== "undefined") {
+                return msIndexedDB;
+              }
+            } catch (e) {
+              return;
+            }
+          }
+          var idb = getIDB();
+          function isIndexedDBValid() {
+            try {
+              if (!idb || !idb.open) {
+                return false;
+              }
+              var isSafari = typeof openDatabase !== "undefined" && /(Safari|iPhone|iPad|iPod)/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent) && !/BlackBerry/.test(navigator.platform);
+              var hasFetch = typeof fetch === "function" && fetch.toString().indexOf("[native code") !== -1;
+              return (!isSafari || hasFetch) && typeof indexedDB !== "undefined" && typeof IDBKeyRange !== "undefined";
+            } catch (e) {
+              return false;
+            }
+          }
+          function createBlob(parts, properties) {
+            parts = parts || [];
+            properties = properties || {};
+            try {
+              return new Blob(parts, properties);
+            } catch (e) {
+              if (e.name !== "TypeError") {
+                throw e;
+              }
+              var Builder = typeof BlobBuilder !== "undefined" ? BlobBuilder : typeof MSBlobBuilder !== "undefined" ? MSBlobBuilder : typeof MozBlobBuilder !== "undefined" ? MozBlobBuilder : WebKitBlobBuilder;
+              var builder = new Builder();
+              for (var i = 0; i < parts.length; i += 1) {
+                builder.append(parts[i]);
+              }
+              return builder.getBlob(properties.type);
+            }
+          }
+          if (typeof Promise === "undefined") {
+            _dereq_(3);
+          }
+          var Promise$1 = Promise;
+          function executeCallback(promise, callback) {
+            if (callback) {
+              promise.then(function(result) {
+                callback(null, result);
+              }, function(error) {
+                callback(error);
+              });
+            }
+          }
+          function executeTwoCallbacks(promise, callback, errorCallback) {
+            if (typeof callback === "function") {
+              promise.then(callback);
+            }
+            if (typeof errorCallback === "function") {
+              promise["catch"](errorCallback);
+            }
+          }
+          function normalizeKey(key2) {
+            if (typeof key2 !== "string") {
+              console.warn(key2 + " used as a key, but it is not a string.");
+              key2 = String(key2);
+            }
+            return key2;
+          }
+          function getCallback() {
+            if (arguments.length && typeof arguments[arguments.length - 1] === "function") {
+              return arguments[arguments.length - 1];
+            }
+          }
+          var DETECT_BLOB_SUPPORT_STORE = "local-forage-detect-blob-support";
+          var supportsBlobs = void 0;
+          var dbContexts = {};
+          var toString = Object.prototype.toString;
+          var READ_ONLY = "readonly";
+          var READ_WRITE = "readwrite";
+          function _binStringToArrayBuffer(bin) {
+            var length2 = bin.length;
+            var buf = new ArrayBuffer(length2);
+            var arr = new Uint8Array(buf);
+            for (var i = 0; i < length2; i++) {
+              arr[i] = bin.charCodeAt(i);
+            }
+            return buf;
+          }
+          function _checkBlobSupportWithoutCaching(idb2) {
+            return new Promise$1(function(resolve) {
+              var txn = idb2.transaction(DETECT_BLOB_SUPPORT_STORE, READ_WRITE);
+              var blob = createBlob([""]);
+              txn.objectStore(DETECT_BLOB_SUPPORT_STORE).put(blob, "key");
+              txn.onabort = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                resolve(false);
+              };
+              txn.oncomplete = function() {
+                var matchedChrome = navigator.userAgent.match(/Chrome\/(\d+)/);
+                var matchedEdge = navigator.userAgent.match(/Edge\//);
+                resolve(matchedEdge || !matchedChrome || parseInt(matchedChrome[1], 10) >= 43);
+              };
+            })["catch"](function() {
+              return false;
+            });
+          }
+          function _checkBlobSupport(idb2) {
+            if (typeof supportsBlobs === "boolean") {
+              return Promise$1.resolve(supportsBlobs);
+            }
+            return _checkBlobSupportWithoutCaching(idb2).then(function(value) {
+              supportsBlobs = value;
+              return supportsBlobs;
+            });
+          }
+          function _deferReadiness(dbInfo) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = {};
+            deferredOperation.promise = new Promise$1(function(resolve, reject) {
+              deferredOperation.resolve = resolve;
+              deferredOperation.reject = reject;
+            });
+            dbContext.deferredOperations.push(deferredOperation);
+            if (!dbContext.dbReady) {
+              dbContext.dbReady = deferredOperation.promise;
+            } else {
+              dbContext.dbReady = dbContext.dbReady.then(function() {
+                return deferredOperation.promise;
+              });
+            }
+          }
+          function _advanceReadiness(dbInfo) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = dbContext.deferredOperations.pop();
+            if (deferredOperation) {
+              deferredOperation.resolve();
+              return deferredOperation.promise;
+            }
+          }
+          function _rejectReadiness(dbInfo, err) {
+            var dbContext = dbContexts[dbInfo.name];
+            var deferredOperation = dbContext.deferredOperations.pop();
+            if (deferredOperation) {
+              deferredOperation.reject(err);
+              return deferredOperation.promise;
+            }
+          }
+          function _getConnection(dbInfo, upgradeNeeded) {
+            return new Promise$1(function(resolve, reject) {
+              dbContexts[dbInfo.name] = dbContexts[dbInfo.name] || createDbContext();
+              if (dbInfo.db) {
+                if (upgradeNeeded) {
+                  _deferReadiness(dbInfo);
+                  dbInfo.db.close();
+                } else {
+                  return resolve(dbInfo.db);
+                }
+              }
+              var dbArgs = [dbInfo.name];
+              if (upgradeNeeded) {
+                dbArgs.push(dbInfo.version);
+              }
+              var openreq = idb.open.apply(idb, dbArgs);
+              if (upgradeNeeded) {
+                openreq.onupgradeneeded = function(e) {
+                  var db = openreq.result;
+                  try {
+                    db.createObjectStore(dbInfo.storeName);
+                    if (e.oldVersion <= 1) {
+                      db.createObjectStore(DETECT_BLOB_SUPPORT_STORE);
+                    }
+                  } catch (ex) {
+                    if (ex.name === "ConstraintError") {
+                      console.warn('The database "' + dbInfo.name + '" has been upgraded from version ' + e.oldVersion + " to version " + e.newVersion + ', but the storage "' + dbInfo.storeName + '" already exists.');
+                    } else {
+                      throw ex;
+                    }
+                  }
+                };
+              }
+              openreq.onerror = function(e) {
+                e.preventDefault();
+                reject(openreq.error);
+              };
+              openreq.onsuccess = function() {
+                var db = openreq.result;
+                db.onversionchange = function(e) {
+                  e.target.close();
+                };
+                resolve(db);
+                _advanceReadiness(dbInfo);
+              };
+            });
+          }
+          function _getOriginalConnection(dbInfo) {
+            return _getConnection(dbInfo, false);
+          }
+          function _getUpgradedConnection(dbInfo) {
+            return _getConnection(dbInfo, true);
+          }
+          function _isUpgradeNeeded(dbInfo, defaultVersion) {
+            if (!dbInfo.db) {
+              return true;
+            }
+            var isNewStore = !dbInfo.db.objectStoreNames.contains(dbInfo.storeName);
+            var isDowngrade = dbInfo.version < dbInfo.db.version;
+            var isUpgrade = dbInfo.version > dbInfo.db.version;
+            if (isDowngrade) {
+              if (dbInfo.version !== defaultVersion) {
+                console.warn('The database "' + dbInfo.name + `" can't be downgraded from version ` + dbInfo.db.version + " to version " + dbInfo.version + ".");
+              }
+              dbInfo.version = dbInfo.db.version;
+            }
+            if (isUpgrade || isNewStore) {
+              if (isNewStore) {
+                var incVersion = dbInfo.db.version + 1;
+                if (incVersion > dbInfo.version) {
+                  dbInfo.version = incVersion;
+                }
+              }
+              return true;
+            }
+            return false;
+          }
+          function _encodeBlob(blob) {
+            return new Promise$1(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onerror = reject;
+              reader.onloadend = function(e) {
+                var base64 = btoa(e.target.result || "");
+                resolve({
+                  __local_forage_encoded_blob: true,
+                  data: base64,
+                  type: blob.type
+                });
+              };
+              reader.readAsBinaryString(blob);
+            });
+          }
+          function _decodeBlob(encodedBlob) {
+            var arrayBuff = _binStringToArrayBuffer(atob(encodedBlob.data));
+            return createBlob([arrayBuff], { type: encodedBlob.type });
+          }
+          function _isEncodedBlob(value) {
+            return value && value.__local_forage_encoded_blob;
+          }
+          function _fullyReady(callback) {
+            var self2 = this;
+            var promise = self2._initReady().then(function() {
+              var dbContext = dbContexts[self2._dbInfo.name];
+              if (dbContext && dbContext.dbReady) {
+                return dbContext.dbReady;
+              }
+            });
+            executeTwoCallbacks(promise, callback, callback);
+            return promise;
+          }
+          function _tryReconnect(dbInfo) {
+            _deferReadiness(dbInfo);
+            var dbContext = dbContexts[dbInfo.name];
+            var forages = dbContext.forages;
+            for (var i = 0; i < forages.length; i++) {
+              var forage = forages[i];
+              if (forage._dbInfo.db) {
+                forage._dbInfo.db.close();
+                forage._dbInfo.db = null;
+              }
+            }
+            dbInfo.db = null;
+            return _getOriginalConnection(dbInfo).then(function(db) {
+              dbInfo.db = db;
+              if (_isUpgradeNeeded(dbInfo)) {
+                return _getUpgradedConnection(dbInfo);
+              }
+              return db;
+            }).then(function(db) {
+              dbInfo.db = dbContext.db = db;
+              for (var i2 = 0; i2 < forages.length; i2++) {
+                forages[i2]._dbInfo.db = db;
+              }
+            })["catch"](function(err) {
+              _rejectReadiness(dbInfo, err);
+              throw err;
+            });
+          }
+          function createTransaction(dbInfo, mode, callback, retries) {
+            if (retries === void 0) {
+              retries = 1;
+            }
+            try {
+              var tx = dbInfo.db.transaction(dbInfo.storeName, mode);
+              callback(null, tx);
+            } catch (err) {
+              if (retries > 0 && (!dbInfo.db || err.name === "InvalidStateError" || err.name === "NotFoundError")) {
+                return Promise$1.resolve().then(function() {
+                  if (!dbInfo.db || err.name === "NotFoundError" && !dbInfo.db.objectStoreNames.contains(dbInfo.storeName) && dbInfo.version <= dbInfo.db.version) {
+                    if (dbInfo.db) {
+                      dbInfo.version = dbInfo.db.version + 1;
+                    }
+                    return _getUpgradedConnection(dbInfo);
+                  }
+                }).then(function() {
+                  return _tryReconnect(dbInfo).then(function() {
+                    createTransaction(dbInfo, mode, callback, retries - 1);
+                  });
+                })["catch"](callback);
+              }
+              callback(err);
+            }
+          }
+          function createDbContext() {
+            return {
+              forages: [],
+              db: null,
+              dbReady: null,
+              deferredOperations: []
+            };
+          }
+          function _initStorage(options) {
+            var self2 = this;
+            var dbInfo = {
+              db: null
+            };
+            if (options) {
+              for (var i in options) {
+                dbInfo[i] = options[i];
+              }
+            }
+            var dbContext = dbContexts[dbInfo.name];
+            if (!dbContext) {
+              dbContext = createDbContext();
+              dbContexts[dbInfo.name] = dbContext;
+            }
+            dbContext.forages.push(self2);
+            if (!self2._initReady) {
+              self2._initReady = self2.ready;
+              self2.ready = _fullyReady;
+            }
+            var initPromises = [];
+            function ignoreErrors() {
+              return Promise$1.resolve();
+            }
+            for (var j = 0; j < dbContext.forages.length; j++) {
+              var forage = dbContext.forages[j];
+              if (forage !== self2) {
+                initPromises.push(forage._initReady()["catch"](ignoreErrors));
+              }
+            }
+            var forages = dbContext.forages.slice(0);
+            return Promise$1.all(initPromises).then(function() {
+              dbInfo.db = dbContext.db;
+              return _getOriginalConnection(dbInfo);
+            }).then(function(db) {
+              dbInfo.db = db;
+              if (_isUpgradeNeeded(dbInfo, self2._defaultConfig.version)) {
+                return _getUpgradedConnection(dbInfo);
+              }
+              return db;
+            }).then(function(db) {
+              dbInfo.db = dbContext.db = db;
+              self2._dbInfo = dbInfo;
+              for (var k = 0; k < forages.length; k++) {
+                var forage2 = forages[k];
+                if (forage2 !== self2) {
+                  forage2._dbInfo.db = dbInfo.db;
+                  forage2._dbInfo.version = dbInfo.version;
+                }
+              }
+            });
+          }
+          function getItem(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.get(key2);
+                    req.onsuccess = function() {
+                      var value = req.result;
+                      if (value === void 0) {
+                        value = null;
+                      }
+                      if (_isEncodedBlob(value)) {
+                        value = _decodeBlob(value);
+                      }
+                      resolve(value);
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate(iterator, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.openCursor();
+                    var iterationNumber = 1;
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (cursor) {
+                        var value = cursor.value;
+                        if (_isEncodedBlob(value)) {
+                          value = _decodeBlob(value);
+                        }
+                        var result = iterator(value, cursor.key, iterationNumber++);
+                        if (result !== void 0) {
+                          resolve(result);
+                        } else {
+                          cursor["continue"]();
+                        }
+                      } else {
+                        resolve();
+                      }
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem(key2, value, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              var dbInfo;
+              self2.ready().then(function() {
+                dbInfo = self2._dbInfo;
+                if (toString.call(value) === "[object Blob]") {
+                  return _checkBlobSupport(dbInfo.db).then(function(blobSupport) {
+                    if (blobSupport) {
+                      return value;
+                    }
+                    return _encodeBlob(value);
+                  });
+                }
+                return value;
+              }).then(function(value2) {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    if (value2 === null) {
+                      value2 = void 0;
+                    }
+                    var req = store.put(value2, key2);
+                    transaction.oncomplete = function() {
+                      if (value2 === void 0) {
+                        value2 = null;
+                      }
+                      resolve(value2);
+                    };
+                    transaction.onabort = transaction.onerror = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function removeItem(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store["delete"](key2);
+                    transaction.oncomplete = function() {
+                      resolve();
+                    };
+                    transaction.onerror = function() {
+                      reject(req.error);
+                    };
+                    transaction.onabort = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function clear(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_WRITE, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.clear();
+                    transaction.oncomplete = function() {
+                      resolve();
+                    };
+                    transaction.onabort = transaction.onerror = function() {
+                      var err2 = req.error ? req.error : req.transaction.error;
+                      reject(err2);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.count();
+                    req.onsuccess = function() {
+                      resolve(req.result);
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key(n, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              if (n < 0) {
+                resolve(null);
+                return;
+              }
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var advanced = false;
+                    var req = store.openKeyCursor();
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (!cursor) {
+                        resolve(null);
+                        return;
+                      }
+                      if (n === 0) {
+                        resolve(cursor.key);
+                      } else {
+                        if (!advanced) {
+                          advanced = true;
+                          cursor.advance(n);
+                        } else {
+                          resolve(cursor.key);
+                        }
+                      }
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                createTransaction(self2._dbInfo, READ_ONLY, function(err, transaction) {
+                  if (err) {
+                    return reject(err);
+                  }
+                  try {
+                    var store = transaction.objectStore(self2._dbInfo.storeName);
+                    var req = store.openKeyCursor();
+                    var keys2 = [];
+                    req.onsuccess = function() {
+                      var cursor = req.result;
+                      if (!cursor) {
+                        resolve(keys2);
+                        return;
+                      }
+                      keys2.push(cursor.key);
+                      cursor["continue"]();
+                    };
+                    req.onerror = function() {
+                      reject(req.error);
+                    };
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function dropInstance(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            var currentConfig = this.config();
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              var isCurrentDb = options.name === currentConfig.name && self2._dbInfo.db;
+              var dbPromise = isCurrentDb ? Promise$1.resolve(self2._dbInfo.db) : _getOriginalConnection(options).then(function(db) {
+                var dbContext = dbContexts[options.name];
+                var forages = dbContext.forages;
+                dbContext.db = db;
+                for (var i = 0; i < forages.length; i++) {
+                  forages[i]._dbInfo.db = db;
+                }
+                return db;
+              });
+              if (!options.storeName) {
+                promise = dbPromise.then(function(db) {
+                  _deferReadiness(options);
+                  var dbContext = dbContexts[options.name];
+                  var forages = dbContext.forages;
+                  db.close();
+                  for (var i = 0; i < forages.length; i++) {
+                    var forage = forages[i];
+                    forage._dbInfo.db = null;
+                  }
+                  var dropDBPromise = new Promise$1(function(resolve, reject) {
+                    var req = idb.deleteDatabase(options.name);
+                    req.onerror = function() {
+                      var db2 = req.result;
+                      if (db2) {
+                        db2.close();
+                      }
+                      reject(req.error);
+                    };
+                    req.onblocked = function() {
+                      console.warn('dropInstance blocked for database "' + options.name + '" until all open connections are closed');
+                    };
+                    req.onsuccess = function() {
+                      var db2 = req.result;
+                      if (db2) {
+                        db2.close();
+                      }
+                      resolve(db2);
+                    };
+                  });
+                  return dropDBPromise.then(function(db2) {
+                    dbContext.db = db2;
+                    for (var i2 = 0; i2 < forages.length; i2++) {
+                      var _forage = forages[i2];
+                      _advanceReadiness(_forage._dbInfo);
+                    }
+                  })["catch"](function(err) {
+                    (_rejectReadiness(options, err) || Promise$1.resolve())["catch"](function() {
+                    });
+                    throw err;
+                  });
+                });
+              } else {
+                promise = dbPromise.then(function(db) {
+                  if (!db.objectStoreNames.contains(options.storeName)) {
+                    return;
+                  }
+                  var newVersion = db.version + 1;
+                  _deferReadiness(options);
+                  var dbContext = dbContexts[options.name];
+                  var forages = dbContext.forages;
+                  db.close();
+                  for (var i = 0; i < forages.length; i++) {
+                    var forage = forages[i];
+                    forage._dbInfo.db = null;
+                    forage._dbInfo.version = newVersion;
+                  }
+                  var dropObjectPromise = new Promise$1(function(resolve, reject) {
+                    var req = idb.open(options.name, newVersion);
+                    req.onerror = function(err) {
+                      var db2 = req.result;
+                      db2.close();
+                      reject(err);
+                    };
+                    req.onupgradeneeded = function() {
+                      var db2 = req.result;
+                      db2.deleteObjectStore(options.storeName);
+                    };
+                    req.onsuccess = function() {
+                      var db2 = req.result;
+                      db2.close();
+                      resolve(db2);
+                    };
+                  });
+                  return dropObjectPromise.then(function(db2) {
+                    dbContext.db = db2;
+                    for (var j = 0; j < forages.length; j++) {
+                      var _forage2 = forages[j];
+                      _forage2._dbInfo.db = db2;
+                      _advanceReadiness(_forage2._dbInfo);
+                    }
+                  })["catch"](function(err) {
+                    (_rejectReadiness(options, err) || Promise$1.resolve())["catch"](function() {
+                    });
+                    throw err;
+                  });
+                });
+              }
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var asyncStorage = {
+            _driver: "asyncStorage",
+            _initStorage,
+            _support: isIndexedDBValid(),
+            iterate,
+            getItem,
+            setItem,
+            removeItem,
+            clear,
+            length,
+            key,
+            keys,
+            dropInstance
+          };
+          function isWebSQLValid() {
+            return typeof openDatabase === "function";
+          }
+          var BASE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+          var BLOB_TYPE_PREFIX = "~~local_forage_type~";
+          var BLOB_TYPE_PREFIX_REGEX = /^~~local_forage_type~([^~]+)~/;
+          var SERIALIZED_MARKER = "__lfsc__:";
+          var SERIALIZED_MARKER_LENGTH = SERIALIZED_MARKER.length;
+          var TYPE_ARRAYBUFFER = "arbf";
+          var TYPE_BLOB = "blob";
+          var TYPE_INT8ARRAY = "si08";
+          var TYPE_UINT8ARRAY = "ui08";
+          var TYPE_UINT8CLAMPEDARRAY = "uic8";
+          var TYPE_INT16ARRAY = "si16";
+          var TYPE_INT32ARRAY = "si32";
+          var TYPE_UINT16ARRAY = "ur16";
+          var TYPE_UINT32ARRAY = "ui32";
+          var TYPE_FLOAT32ARRAY = "fl32";
+          var TYPE_FLOAT64ARRAY = "fl64";
+          var TYPE_SERIALIZED_MARKER_LENGTH = SERIALIZED_MARKER_LENGTH + TYPE_ARRAYBUFFER.length;
+          var toString$1 = Object.prototype.toString;
+          function stringToBuffer(serializedString) {
+            var bufferLength = serializedString.length * 0.75;
+            var len = serializedString.length;
+            var i;
+            var p = 0;
+            var encoded1, encoded2, encoded3, encoded4;
+            if (serializedString[serializedString.length - 1] === "=") {
+              bufferLength--;
+              if (serializedString[serializedString.length - 2] === "=") {
+                bufferLength--;
+              }
+            }
+            var buffer = new ArrayBuffer(bufferLength);
+            var bytes = new Uint8Array(buffer);
+            for (i = 0; i < len; i += 4) {
+              encoded1 = BASE_CHARS.indexOf(serializedString[i]);
+              encoded2 = BASE_CHARS.indexOf(serializedString[i + 1]);
+              encoded3 = BASE_CHARS.indexOf(serializedString[i + 2]);
+              encoded4 = BASE_CHARS.indexOf(serializedString[i + 3]);
+              bytes[p++] = encoded1 << 2 | encoded2 >> 4;
+              bytes[p++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+              bytes[p++] = (encoded3 & 3) << 6 | encoded4 & 63;
+            }
+            return buffer;
+          }
+          function bufferToString(buffer) {
+            var bytes = new Uint8Array(buffer);
+            var base64String = "";
+            var i;
+            for (i = 0; i < bytes.length; i += 3) {
+              base64String += BASE_CHARS[bytes[i] >> 2];
+              base64String += BASE_CHARS[(bytes[i] & 3) << 4 | bytes[i + 1] >> 4];
+              base64String += BASE_CHARS[(bytes[i + 1] & 15) << 2 | bytes[i + 2] >> 6];
+              base64String += BASE_CHARS[bytes[i + 2] & 63];
+            }
+            if (bytes.length % 3 === 2) {
+              base64String = base64String.substring(0, base64String.length - 1) + "=";
+            } else if (bytes.length % 3 === 1) {
+              base64String = base64String.substring(0, base64String.length - 2) + "==";
+            }
+            return base64String;
+          }
+          function serialize(value, callback) {
+            var valueType = "";
+            if (value) {
+              valueType = toString$1.call(value);
+            }
+            if (value && (valueType === "[object ArrayBuffer]" || value.buffer && toString$1.call(value.buffer) === "[object ArrayBuffer]")) {
+              var buffer;
+              var marker = SERIALIZED_MARKER;
+              if (value instanceof ArrayBuffer) {
+                buffer = value;
+                marker += TYPE_ARRAYBUFFER;
+              } else {
+                buffer = value.buffer;
+                if (valueType === "[object Int8Array]") {
+                  marker += TYPE_INT8ARRAY;
+                } else if (valueType === "[object Uint8Array]") {
+                  marker += TYPE_UINT8ARRAY;
+                } else if (valueType === "[object Uint8ClampedArray]") {
+                  marker += TYPE_UINT8CLAMPEDARRAY;
+                } else if (valueType === "[object Int16Array]") {
+                  marker += TYPE_INT16ARRAY;
+                } else if (valueType === "[object Uint16Array]") {
+                  marker += TYPE_UINT16ARRAY;
+                } else if (valueType === "[object Int32Array]") {
+                  marker += TYPE_INT32ARRAY;
+                } else if (valueType === "[object Uint32Array]") {
+                  marker += TYPE_UINT32ARRAY;
+                } else if (valueType === "[object Float32Array]") {
+                  marker += TYPE_FLOAT32ARRAY;
+                } else if (valueType === "[object Float64Array]") {
+                  marker += TYPE_FLOAT64ARRAY;
+                } else {
+                  callback(new Error("Failed to get type for BinaryArray"));
+                }
+              }
+              callback(marker + bufferToString(buffer));
+            } else if (valueType === "[object Blob]") {
+              var fileReader = new FileReader();
+              fileReader.onload = function() {
+                var str = BLOB_TYPE_PREFIX + value.type + "~" + bufferToString(this.result);
+                callback(SERIALIZED_MARKER + TYPE_BLOB + str);
+              };
+              fileReader.readAsArrayBuffer(value);
+            } else {
+              try {
+                callback(JSON.stringify(value));
+              } catch (e) {
+                console.error("Couldn't convert value into a JSON string: ", value);
+                callback(null, e);
+              }
+            }
+          }
+          function deserialize(value) {
+            if (value.substring(0, SERIALIZED_MARKER_LENGTH) !== SERIALIZED_MARKER) {
+              return JSON.parse(value);
+            }
+            var serializedString = value.substring(TYPE_SERIALIZED_MARKER_LENGTH);
+            var type = value.substring(SERIALIZED_MARKER_LENGTH, TYPE_SERIALIZED_MARKER_LENGTH);
+            var blobType;
+            if (type === TYPE_BLOB && BLOB_TYPE_PREFIX_REGEX.test(serializedString)) {
+              var matcher = serializedString.match(BLOB_TYPE_PREFIX_REGEX);
+              blobType = matcher[1];
+              serializedString = serializedString.substring(matcher[0].length);
+            }
+            var buffer = stringToBuffer(serializedString);
+            switch (type) {
+              case TYPE_ARRAYBUFFER:
+                return buffer;
+              case TYPE_BLOB:
+                return createBlob([buffer], { type: blobType });
+              case TYPE_INT8ARRAY:
+                return new Int8Array(buffer);
+              case TYPE_UINT8ARRAY:
+                return new Uint8Array(buffer);
+              case TYPE_UINT8CLAMPEDARRAY:
+                return new Uint8ClampedArray(buffer);
+              case TYPE_INT16ARRAY:
+                return new Int16Array(buffer);
+              case TYPE_UINT16ARRAY:
+                return new Uint16Array(buffer);
+              case TYPE_INT32ARRAY:
+                return new Int32Array(buffer);
+              case TYPE_UINT32ARRAY:
+                return new Uint32Array(buffer);
+              case TYPE_FLOAT32ARRAY:
+                return new Float32Array(buffer);
+              case TYPE_FLOAT64ARRAY:
+                return new Float64Array(buffer);
+              default:
+                throw new Error("Unkown type: " + type);
+            }
+          }
+          var localforageSerializer = {
+            serialize,
+            deserialize,
+            stringToBuffer,
+            bufferToString
+          };
+          function createDbTable(t, dbInfo, callback, errorCallback) {
+            t.executeSql("CREATE TABLE IF NOT EXISTS " + dbInfo.storeName + " (id INTEGER PRIMARY KEY, key unique, value)", [], callback, errorCallback);
+          }
+          function _initStorage$1(options) {
+            var self2 = this;
+            var dbInfo = {
+              db: null
+            };
+            if (options) {
+              for (var i in options) {
+                dbInfo[i] = typeof options[i] !== "string" ? options[i].toString() : options[i];
+              }
+            }
+            var dbInfoPromise = new Promise$1(function(resolve, reject) {
+              try {
+                dbInfo.db = openDatabase(dbInfo.name, String(dbInfo.version), dbInfo.description, dbInfo.size);
+              } catch (e) {
+                return reject(e);
+              }
+              dbInfo.db.transaction(function(t) {
+                createDbTable(t, dbInfo, function() {
+                  self2._dbInfo = dbInfo;
+                  resolve();
+                }, function(t2, error) {
+                  reject(error);
+                });
+              }, reject);
+            });
+            dbInfo.serializer = localforageSerializer;
+            return dbInfoPromise;
+          }
+          function tryExecuteSql(t, dbInfo, sqlStatement, args, callback, errorCallback) {
+            t.executeSql(sqlStatement, args, callback, function(t2, error) {
+              if (error.code === error.SYNTAX_ERR) {
+                t2.executeSql("SELECT name FROM sqlite_master WHERE type='table' AND name = ?", [dbInfo.storeName], function(t3, results) {
+                  if (!results.rows.length) {
+                    createDbTable(t3, dbInfo, function() {
+                      t3.executeSql(sqlStatement, args, callback, errorCallback);
+                    }, errorCallback);
+                  } else {
+                    errorCallback(t3, error);
+                  }
+                }, errorCallback);
+              } else {
+                errorCallback(t2, error);
+              }
+            }, errorCallback);
+          }
+          function getItem$1(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "SELECT * FROM " + dbInfo.storeName + " WHERE key = ? LIMIT 1", [key2], function(t2, results) {
+                    var result = results.rows.length ? results.rows.item(0).value : null;
+                    if (result) {
+                      result = dbInfo.serializer.deserialize(result);
+                    }
+                    resolve(result);
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate$1(iterator, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "SELECT * FROM " + dbInfo.storeName, [], function(t2, results) {
+                    var rows = results.rows;
+                    var length2 = rows.length;
+                    for (var i = 0; i < length2; i++) {
+                      var item = rows.item(i);
+                      var result = item.value;
+                      if (result) {
+                        result = dbInfo.serializer.deserialize(result);
+                      }
+                      result = iterator(result, item.key, i + 1);
+                      if (result !== void 0) {
+                        resolve(result);
+                        return;
+                      }
+                    }
+                    resolve();
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function _setItem(key2, value, callback, retriesLeft) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                if (value === void 0) {
+                  value = null;
+                }
+                var originalValue = value;
+                var dbInfo = self2._dbInfo;
+                dbInfo.serializer.serialize(value, function(value2, error) {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    dbInfo.db.transaction(function(t) {
+                      tryExecuteSql(t, dbInfo, "INSERT OR REPLACE INTO " + dbInfo.storeName + " (key, value) VALUES (?, ?)", [key2, value2], function() {
+                        resolve(originalValue);
+                      }, function(t2, error2) {
+                        reject(error2);
+                      });
+                    }, function(sqlError) {
+                      if (sqlError.code === sqlError.QUOTA_ERR) {
+                        if (retriesLeft > 0) {
+                          resolve(_setItem.apply(self2, [key2, originalValue, callback, retriesLeft - 1]));
+                          return;
+                        }
+                        reject(sqlError);
+                      }
+                    });
+                  }
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem$1(key2, value, callback) {
+            return _setItem.apply(this, [key2, value, callback, 1]);
+          }
+          function removeItem$1(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "DELETE FROM " + dbInfo.storeName + " WHERE key = ?", [key2], function() {
+                    resolve();
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function clear$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "DELETE FROM " + dbInfo.storeName, [], function() {
+                    resolve();
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "SELECT COUNT(key) as c FROM " + dbInfo.storeName, [], function(t2, results) {
+                    var result = results.rows.item(0).c;
+                    resolve(result);
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key$1(n, callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "SELECT key FROM " + dbInfo.storeName + " WHERE id = ? LIMIT 1", [n + 1], function(t2, results) {
+                    var result = results.rows.length ? results.rows.item(0).key : null;
+                    resolve(result);
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys$1(callback) {
+            var self2 = this;
+            var promise = new Promise$1(function(resolve, reject) {
+              self2.ready().then(function() {
+                var dbInfo = self2._dbInfo;
+                dbInfo.db.transaction(function(t) {
+                  tryExecuteSql(t, dbInfo, "SELECT key FROM " + dbInfo.storeName, [], function(t2, results) {
+                    var keys2 = [];
+                    for (var i = 0; i < results.rows.length; i++) {
+                      keys2.push(results.rows.item(i).key);
+                    }
+                    resolve(keys2);
+                  }, function(t2, error) {
+                    reject(error);
+                  });
+                });
+              })["catch"](reject);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function getAllStoreNames(db) {
+            return new Promise$1(function(resolve, reject) {
+              db.transaction(function(t) {
+                t.executeSql("SELECT name FROM sqlite_master WHERE type='table' AND name <> '__WebKitDatabaseInfoTable__'", [], function(t2, results) {
+                  var storeNames = [];
+                  for (var i = 0; i < results.rows.length; i++) {
+                    storeNames.push(results.rows.item(i).name);
+                  }
+                  resolve({
+                    db,
+                    storeNames
+                  });
+                }, function(t2, error) {
+                  reject(error);
+                });
+              }, function(sqlError) {
+                reject(sqlError);
+              });
+            });
+          }
+          function dropInstance$1(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            var currentConfig = this.config();
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              promise = new Promise$1(function(resolve) {
+                var db;
+                if (options.name === currentConfig.name) {
+                  db = self2._dbInfo.db;
+                } else {
+                  db = openDatabase(options.name, "", "", 0);
+                }
+                if (!options.storeName) {
+                  resolve(getAllStoreNames(db));
+                } else {
+                  resolve({
+                    db,
+                    storeNames: [options.storeName]
+                  });
+                }
+              }).then(function(operationInfo) {
+                return new Promise$1(function(resolve, reject) {
+                  operationInfo.db.transaction(function(t) {
+                    function dropTable(storeName) {
+                      return new Promise$1(function(resolve2, reject2) {
+                        t.executeSql("DROP TABLE IF EXISTS " + storeName, [], function() {
+                          resolve2();
+                        }, function(t2, error) {
+                          reject2(error);
+                        });
+                      });
+                    }
+                    var operations = [];
+                    for (var i = 0, len = operationInfo.storeNames.length; i < len; i++) {
+                      operations.push(dropTable(operationInfo.storeNames[i]));
+                    }
+                    Promise$1.all(operations).then(function() {
+                      resolve();
+                    })["catch"](function(e) {
+                      reject(e);
+                    });
+                  }, function(sqlError) {
+                    reject(sqlError);
+                  });
+                });
+              });
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var webSQLStorage = {
+            _driver: "webSQLStorage",
+            _initStorage: _initStorage$1,
+            _support: isWebSQLValid(),
+            iterate: iterate$1,
+            getItem: getItem$1,
+            setItem: setItem$1,
+            removeItem: removeItem$1,
+            clear: clear$1,
+            length: length$1,
+            key: key$1,
+            keys: keys$1,
+            dropInstance: dropInstance$1
+          };
+          function isLocalStorageValid() {
+            try {
+              return typeof localStorage !== "undefined" && "setItem" in localStorage && !!localStorage.setItem;
+            } catch (e) {
+              return false;
+            }
+          }
+          function _getKeyPrefix(options, defaultConfig) {
+            var keyPrefix = options.name + "/";
+            if (options.storeName !== defaultConfig.storeName) {
+              keyPrefix += options.storeName + "/";
+            }
+            return keyPrefix;
+          }
+          function checkIfLocalStorageThrows() {
+            var localStorageTestKey = "_localforage_support_test";
+            try {
+              localStorage.setItem(localStorageTestKey, true);
+              localStorage.removeItem(localStorageTestKey);
+              return false;
+            } catch (e) {
+              return true;
+            }
+          }
+          function _isLocalStorageUsable() {
+            return !checkIfLocalStorageThrows() || localStorage.length > 0;
+          }
+          function _initStorage$2(options) {
+            var self2 = this;
+            var dbInfo = {};
+            if (options) {
+              for (var i in options) {
+                dbInfo[i] = options[i];
+              }
+            }
+            dbInfo.keyPrefix = _getKeyPrefix(options, self2._defaultConfig);
+            if (!_isLocalStorageUsable()) {
+              return Promise$1.reject();
+            }
+            self2._dbInfo = dbInfo;
+            dbInfo.serializer = localforageSerializer;
+            return Promise$1.resolve();
+          }
+          function clear$2(callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var keyPrefix = self2._dbInfo.keyPrefix;
+              for (var i = localStorage.length - 1; i >= 0; i--) {
+                var key2 = localStorage.key(i);
+                if (key2.indexOf(keyPrefix) === 0) {
+                  localStorage.removeItem(key2);
+                }
+              }
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function getItem$2(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var result = localStorage.getItem(dbInfo.keyPrefix + key2);
+              if (result) {
+                result = dbInfo.serializer.deserialize(result);
+              }
+              return result;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function iterate$2(iterator, callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var keyPrefix = dbInfo.keyPrefix;
+              var keyPrefixLength = keyPrefix.length;
+              var length2 = localStorage.length;
+              var iterationNumber = 1;
+              for (var i = 0; i < length2; i++) {
+                var key2 = localStorage.key(i);
+                if (key2.indexOf(keyPrefix) !== 0) {
+                  continue;
+                }
+                var value = localStorage.getItem(key2);
+                if (value) {
+                  value = dbInfo.serializer.deserialize(value);
+                }
+                value = iterator(value, key2.substring(keyPrefixLength), iterationNumber++);
+                if (value !== void 0) {
+                  return value;
+                }
+              }
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function key$2(n, callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var result;
+              try {
+                result = localStorage.key(n);
+              } catch (error) {
+                result = null;
+              }
+              if (result) {
+                result = result.substring(dbInfo.keyPrefix.length);
+              }
+              return result;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function keys$2(callback) {
+            var self2 = this;
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              var length2 = localStorage.length;
+              var keys2 = [];
+              for (var i = 0; i < length2; i++) {
+                var itemKey = localStorage.key(i);
+                if (itemKey.indexOf(dbInfo.keyPrefix) === 0) {
+                  keys2.push(itemKey.substring(dbInfo.keyPrefix.length));
+                }
+              }
+              return keys2;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function length$2(callback) {
+            var self2 = this;
+            var promise = self2.keys().then(function(keys2) {
+              return keys2.length;
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function removeItem$2(key2, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              var dbInfo = self2._dbInfo;
+              localStorage.removeItem(dbInfo.keyPrefix + key2);
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function setItem$2(key2, value, callback) {
+            var self2 = this;
+            key2 = normalizeKey(key2);
+            var promise = self2.ready().then(function() {
+              if (value === void 0) {
+                value = null;
+              }
+              var originalValue = value;
+              return new Promise$1(function(resolve, reject) {
+                var dbInfo = self2._dbInfo;
+                dbInfo.serializer.serialize(value, function(value2, error) {
+                  if (error) {
+                    reject(error);
+                  } else {
+                    try {
+                      localStorage.setItem(dbInfo.keyPrefix + key2, value2);
+                      resolve(originalValue);
+                    } catch (e) {
+                      if (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED") {
+                        reject(e);
+                      }
+                      reject(e);
+                    }
+                  }
+                });
+              });
+            });
+            executeCallback(promise, callback);
+            return promise;
+          }
+          function dropInstance$2(options, callback) {
+            callback = getCallback.apply(this, arguments);
+            options = typeof options !== "function" && options || {};
+            if (!options.name) {
+              var currentConfig = this.config();
+              options.name = options.name || currentConfig.name;
+              options.storeName = options.storeName || currentConfig.storeName;
+            }
+            var self2 = this;
+            var promise;
+            if (!options.name) {
+              promise = Promise$1.reject("Invalid arguments");
+            } else {
+              promise = new Promise$1(function(resolve) {
+                if (!options.storeName) {
+                  resolve(options.name + "/");
+                } else {
+                  resolve(_getKeyPrefix(options, self2._defaultConfig));
+                }
+              }).then(function(keyPrefix) {
+                for (var i = localStorage.length - 1; i >= 0; i--) {
+                  var key2 = localStorage.key(i);
+                  if (key2.indexOf(keyPrefix) === 0) {
+                    localStorage.removeItem(key2);
+                  }
+                }
+              });
+            }
+            executeCallback(promise, callback);
+            return promise;
+          }
+          var localStorageWrapper = {
+            _driver: "localStorageWrapper",
+            _initStorage: _initStorage$2,
+            _support: isLocalStorageValid(),
+            iterate: iterate$2,
+            getItem: getItem$2,
+            setItem: setItem$2,
+            removeItem: removeItem$2,
+            clear: clear$2,
+            length: length$2,
+            key: key$2,
+            keys: keys$2,
+            dropInstance: dropInstance$2
+          };
+          var sameValue = function sameValue2(x, y) {
+            return x === y || typeof x === "number" && typeof y === "number" && isNaN(x) && isNaN(y);
+          };
+          var includes = function includes2(array, searchElement) {
+            var len = array.length;
+            var i = 0;
+            while (i < len) {
+              if (sameValue(array[i], searchElement)) {
+                return true;
+              }
+              i++;
+            }
+            return false;
+          };
+          var isArray = Array.isArray || function(arg) {
+            return Object.prototype.toString.call(arg) === "[object Array]";
+          };
+          var DefinedDrivers = {};
+          var DriverSupport = {};
+          var DefaultDrivers = {
+            INDEXEDDB: asyncStorage,
+            WEBSQL: webSQLStorage,
+            LOCALSTORAGE: localStorageWrapper
+          };
+          var DefaultDriverOrder = [DefaultDrivers.INDEXEDDB._driver, DefaultDrivers.WEBSQL._driver, DefaultDrivers.LOCALSTORAGE._driver];
+          var OptionalDriverMethods = ["dropInstance"];
+          var LibraryMethods = ["clear", "getItem", "iterate", "key", "keys", "length", "removeItem", "setItem"].concat(OptionalDriverMethods);
+          var DefaultConfig = {
+            description: "",
+            driver: DefaultDriverOrder.slice(),
+            name: "localforage",
+            size: 4980736,
+            storeName: "keyvaluepairs",
+            version: 1
+          };
+          function callWhenReady(localForageInstance, libraryMethod) {
+            localForageInstance[libraryMethod] = function() {
+              var _args = arguments;
+              return localForageInstance.ready().then(function() {
+                return localForageInstance[libraryMethod].apply(localForageInstance, _args);
+              });
+            };
+          }
+          function extend() {
+            for (var i = 1; i < arguments.length; i++) {
+              var arg = arguments[i];
+              if (arg) {
+                for (var _key in arg) {
+                  if (arg.hasOwnProperty(_key)) {
+                    if (isArray(arg[_key])) {
+                      arguments[0][_key] = arg[_key].slice();
+                    } else {
+                      arguments[0][_key] = arg[_key];
+                    }
+                  }
+                }
+              }
+            }
+            return arguments[0];
+          }
+          var LocalForage = function() {
+            function LocalForage2(options) {
+              _classCallCheck(this, LocalForage2);
+              for (var driverTypeKey in DefaultDrivers) {
+                if (DefaultDrivers.hasOwnProperty(driverTypeKey)) {
+                  var driver = DefaultDrivers[driverTypeKey];
+                  var driverName = driver._driver;
+                  this[driverTypeKey] = driverName;
+                  if (!DefinedDrivers[driverName]) {
+                    this.defineDriver(driver);
+                  }
+                }
+              }
+              this._defaultConfig = extend({}, DefaultConfig);
+              this._config = extend({}, this._defaultConfig, options);
+              this._driverSet = null;
+              this._initDriver = null;
+              this._ready = false;
+              this._dbInfo = null;
+              this._wrapLibraryMethodsWithReady();
+              this.setDriver(this._config.driver)["catch"](function() {
+              });
+            }
+            LocalForage2.prototype.config = function config(options) {
+              if ((typeof options === "undefined" ? "undefined" : _typeof(options)) === "object") {
+                if (this._ready) {
+                  return new Error("Can't call config() after localforage has been used.");
+                }
+                for (var i in options) {
+                  if (i === "storeName") {
+                    options[i] = options[i].replace(/\W/g, "_");
+                  }
+                  if (i === "version" && typeof options[i] !== "number") {
+                    return new Error("Database version must be a number.");
+                  }
+                  this._config[i] = options[i];
+                }
+                if ("driver" in options && options.driver) {
+                  return this.setDriver(this._config.driver);
+                }
+                return true;
+              } else if (typeof options === "string") {
+                return this._config[options];
+              } else {
+                return this._config;
+              }
+            };
+            LocalForage2.prototype.defineDriver = function defineDriver(driverObject, callback, errorCallback) {
+              var promise = new Promise$1(function(resolve, reject) {
+                try {
+                  var driverName = driverObject._driver;
+                  var complianceError = new Error("Custom driver not compliant; see https://mozilla.github.io/localForage/#definedriver");
+                  if (!driverObject._driver) {
+                    reject(complianceError);
+                    return;
+                  }
+                  var driverMethods = LibraryMethods.concat("_initStorage");
+                  for (var i = 0, len = driverMethods.length; i < len; i++) {
+                    var driverMethodName = driverMethods[i];
+                    var isRequired = !includes(OptionalDriverMethods, driverMethodName);
+                    if ((isRequired || driverObject[driverMethodName]) && typeof driverObject[driverMethodName] !== "function") {
+                      reject(complianceError);
+                      return;
+                    }
+                  }
+                  var configureMissingMethods = function configureMissingMethods2() {
+                    var methodNotImplementedFactory = function methodNotImplementedFactory2(methodName) {
+                      return function() {
+                        var error = new Error("Method " + methodName + " is not implemented by the current driver");
+                        var promise2 = Promise$1.reject(error);
+                        executeCallback(promise2, arguments[arguments.length - 1]);
+                        return promise2;
+                      };
+                    };
+                    for (var _i = 0, _len = OptionalDriverMethods.length; _i < _len; _i++) {
+                      var optionalDriverMethod = OptionalDriverMethods[_i];
+                      if (!driverObject[optionalDriverMethod]) {
+                        driverObject[optionalDriverMethod] = methodNotImplementedFactory(optionalDriverMethod);
+                      }
+                    }
+                  };
+                  configureMissingMethods();
+                  var setDriverSupport = function setDriverSupport2(support) {
+                    if (DefinedDrivers[driverName]) {
+                      console.info("Redefining LocalForage driver: " + driverName);
+                    }
+                    DefinedDrivers[driverName] = driverObject;
+                    DriverSupport[driverName] = support;
+                    resolve();
+                  };
+                  if ("_support" in driverObject) {
+                    if (driverObject._support && typeof driverObject._support === "function") {
+                      driverObject._support().then(setDriverSupport, reject);
+                    } else {
+                      setDriverSupport(!!driverObject._support);
+                    }
+                  } else {
+                    setDriverSupport(true);
+                  }
+                } catch (e) {
+                  reject(e);
+                }
+              });
+              executeTwoCallbacks(promise, callback, errorCallback);
+              return promise;
+            };
+            LocalForage2.prototype.driver = function driver() {
+              return this._driver || null;
+            };
+            LocalForage2.prototype.getDriver = function getDriver(driverName, callback, errorCallback) {
+              var getDriverPromise = DefinedDrivers[driverName] ? Promise$1.resolve(DefinedDrivers[driverName]) : Promise$1.reject(new Error("Driver not found."));
+              executeTwoCallbacks(getDriverPromise, callback, errorCallback);
+              return getDriverPromise;
+            };
+            LocalForage2.prototype.getSerializer = function getSerializer(callback) {
+              var serializerPromise = Promise$1.resolve(localforageSerializer);
+              executeTwoCallbacks(serializerPromise, callback);
+              return serializerPromise;
+            };
+            LocalForage2.prototype.ready = function ready(callback) {
+              var self2 = this;
+              var promise = self2._driverSet.then(function() {
+                if (self2._ready === null) {
+                  self2._ready = self2._initDriver();
+                }
+                return self2._ready;
+              });
+              executeTwoCallbacks(promise, callback, callback);
+              return promise;
+            };
+            LocalForage2.prototype.setDriver = function setDriver(drivers, callback, errorCallback) {
+              var self2 = this;
+              if (!isArray(drivers)) {
+                drivers = [drivers];
+              }
+              var supportedDrivers = this._getSupportedDrivers(drivers);
+              function setDriverToConfig() {
+                self2._config.driver = self2.driver();
+              }
+              function extendSelfWithDriver(driver) {
+                self2._extend(driver);
+                setDriverToConfig();
+                self2._ready = self2._initStorage(self2._config);
+                return self2._ready;
+              }
+              function initDriver(supportedDrivers2) {
+                return function() {
+                  var currentDriverIndex = 0;
+                  function driverPromiseLoop() {
+                    while (currentDriverIndex < supportedDrivers2.length) {
+                      var driverName = supportedDrivers2[currentDriverIndex];
+                      currentDriverIndex++;
+                      self2._dbInfo = null;
+                      self2._ready = null;
+                      return self2.getDriver(driverName).then(extendSelfWithDriver)["catch"](driverPromiseLoop);
+                    }
+                    setDriverToConfig();
+                    var error = new Error("No available storage method found.");
+                    self2._driverSet = Promise$1.reject(error);
+                    return self2._driverSet;
+                  }
+                  return driverPromiseLoop();
+                };
+              }
+              var oldDriverSetDone = this._driverSet !== null ? this._driverSet["catch"](function() {
+                return Promise$1.resolve();
+              }) : Promise$1.resolve();
+              this._driverSet = oldDriverSetDone.then(function() {
+                var driverName = supportedDrivers[0];
+                self2._dbInfo = null;
+                self2._ready = null;
+                return self2.getDriver(driverName).then(function(driver) {
+                  self2._driver = driver._driver;
+                  setDriverToConfig();
+                  self2._wrapLibraryMethodsWithReady();
+                  self2._initDriver = initDriver(supportedDrivers);
+                });
+              })["catch"](function() {
+                setDriverToConfig();
+                var error = new Error("No available storage method found.");
+                self2._driverSet = Promise$1.reject(error);
+                return self2._driverSet;
+              });
+              executeTwoCallbacks(this._driverSet, callback, errorCallback);
+              return this._driverSet;
+            };
+            LocalForage2.prototype.supports = function supports(driverName) {
+              return !!DriverSupport[driverName];
+            };
+            LocalForage2.prototype._extend = function _extend(libraryMethodsAndProperties) {
+              extend(this, libraryMethodsAndProperties);
+            };
+            LocalForage2.prototype._getSupportedDrivers = function _getSupportedDrivers(drivers) {
+              var supportedDrivers = [];
+              for (var i = 0, len = drivers.length; i < len; i++) {
+                var driverName = drivers[i];
+                if (this.supports(driverName)) {
+                  supportedDrivers.push(driverName);
+                }
+              }
+              return supportedDrivers;
+            };
+            LocalForage2.prototype._wrapLibraryMethodsWithReady = function _wrapLibraryMethodsWithReady() {
+              for (var i = 0, len = LibraryMethods.length; i < len; i++) {
+                callWhenReady(this, LibraryMethods[i]);
+              }
+            };
+            LocalForage2.prototype.createInstance = function createInstance(options) {
+              return new LocalForage2(options);
+            };
+            return LocalForage2;
+          }();
+          var localforage_js = new LocalForage();
+          module4.exports = localforage_js;
+        }, { "3": 3 }] }, {}, [4])(4);
+      });
+    }
+  });
+
   // node_modules/moment/moment.js
   var require_moment = __commonJS({
     "node_modules/moment/moment.js"(exports2, module2) {
-      (function(global, factory) {
-        typeof exports2 === "object" && typeof module2 !== "undefined" ? module2.exports = factory() : typeof define === "function" && define.amd ? define(factory) : global.moment = factory();
+      (function(global2, factory) {
+        typeof exports2 === "object" && typeof module2 !== "undefined" ? module2.exports = factory() : typeof define === "function" && define.amd ? define(factory) : global2.moment = factory();
       })(exports2, function() {
         "use strict";
         var hookCallback;
@@ -21352,86 +23489,1562 @@ class Tooltip {
     }
   });
 
-  // ../clefincode_chat/clefincode_chat/public/js/components/erpnext_chat_bubble.js
-  var ChatBubble = class {
-    constructor(parent) {
-      this.parent = parent;
-      this.setup();
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/ui/theme_switcher.js
+  frappe.provide("frappe.ui");
+  frappe.ui.ThemeSwitcher = class ThemeSwitcher {
+    constructor() {
+      this.setup_dialog();
+      this.refresh();
     }
-    setup() {
-      this.$chat_bubble = $(document.createElement("div"));
-      let chat_icon = `<img title="Start Chat" src="/assets/clefincode_chat/icons/clefincode_chat.svg" width="50px" height="50px">`;
-      this.open_title = this.parent.is_admin ? __("Show Chats") : chat_icon;
-      this.closed_title = __("Close Chat");
-      const bubble_visible = this.parent.is_desk === true ? "d-none" : "";
-      this.open_inner_html = `
-              <div class='p-3 chat-bubble ${bubble_visible}'>                  
-                  <div>${this.open_title}</div>
-              </div>
-          `;
-      this.closed_inner_html = `
-          <div class='chat-bubble-closed chat-bubble ${bubble_visible}'>
-              <span class='cross-icon'>
-              <img title="Start Chat" src="/assets/clefincode_chat/icons/close.svg"  width="25px" height="25px">
-              </span>
-          </div>
-          `;
-      this.$chat_bubble.attr({
-        title: "Start Chat",
-        id: "chat-bubble"
-      }).html(this.open_inner_html);
+    setup_dialog() {
+      this.dialog = new frappe.ui.Dialog({
+        title: __("Switch Theme")
+      });
+      this.body = $(`<div class="theme-grid"></div>`).appendTo(this.dialog.$body);
+      this.bind_events();
+    }
+    bind_events() {
+      this.dialog.$wrapper.on("keydown", (e) => {
+        if (!this.themes)
+          return;
+        const key = frappe.ui.keys.get_key(e);
+        let increment_by;
+        if (key === "right") {
+          increment_by = 1;
+        } else if (key === "left") {
+          increment_by = -1;
+        } else if (e.keyCode === 13) {
+          this.hide();
+        } else {
+          return;
+        }
+        const current_index = this.themes.findIndex((theme) => {
+          return theme.name === this.current_theme;
+        });
+        const new_theme = this.themes[current_index + increment_by];
+        if (!new_theme)
+          return;
+        new_theme.$html.click();
+        return false;
+      });
+    }
+    refresh() {
+      this.current_theme = document.documentElement.getAttribute("data-theme-mode") || "light";
+      this.fetch_themes().then(() => {
+        this.render();
+      });
+    }
+    fetch_themes() {
+      return new Promise((resolve) => {
+        this.themes = [
+          {
+            name: "light",
+            label: __("Frappe Light"),
+            info: __("Light Theme")
+          },
+          {
+            name: "dark",
+            label: __("Timeless Night"),
+            info: __("Dark Theme")
+          },
+          {
+            name: "automatic",
+            label: __("Automatic"),
+            info: __("Uses system's theme to switch between light and dark mode")
+          }
+        ];
+        resolve(this.themes);
+      });
     }
     render() {
-      this.parent.$chat_right_section.append(this.$chat_bubble);
-      this.setup_events();
+      this.themes.forEach((theme) => {
+        let html = this.get_preview_html(theme);
+        html.appendTo(this.body);
+        theme.$html = html;
+      });
     }
-    disk_chat_icon() {
-      if (this.parent.chat_list && this.parent.chat_list.is_open == true) {
-        return;
-      }
-      this.parent.is_open = !this.parent.is_open;
-      this.parent.show_chat_widget();
+    get_preview_html(theme) {
+      const is_auto_theme = theme.name === "automatic";
+      const preview = $(`<div class="${this.current_theme == theme.name ? "selected" : ""}">
+			<div data-theme=${is_auto_theme ? "light" : theme.name}
+				data-is-auto-theme="${is_auto_theme}" title="${theme.info}">
+				<div class="background">
+					<div>
+						<div class="preview-check" data-theme=${is_auto_theme ? "dark" : theme.name}>
+							${frappe.utils.icon("tick", "xs")}
+						</div>
+					</div>
+					<div class="navbar"></div>
+					<div class="p-2">
+						<div class="toolbar">
+							<span class="text"></span>
+							<span class="primary"></span>
+						</div>
+						<div class="foreground"></div>
+						<div class="foreground"></div>
+					</div>
+				</div>
+			</div>
+			<div class="mt-3 text-center">
+				<h5 class="theme-title">${theme.label}</h5>
+			</div>
+		</div>`);
+      preview.on("click", () => {
+        if (this.current_theme === theme.name)
+          return;
+        this.themes.forEach((th) => {
+          th.$html.removeClass("selected");
+        });
+        preview.addClass("selected");
+        this.toggle_theme(theme.name);
+      });
+      return preview;
     }
-    portal_chat_icon() {
-      if (this.parent.res.user_type != "guest" && this.parent.is_open) {
-        return;
+    toggle_theme(theme) {
+      this.current_theme = theme.toLowerCase();
+      document.documentElement.setAttribute("data-theme-mode", this.current_theme);
+      frappe.show_alert(__("Theme Changed"), 3);
+      frappe.xcall("frappe.core.doctype.user.user.switch_theme", {
+        theme: toTitle(theme)
+      });
+    }
+    show() {
+      this.dialog.show();
+    }
+    hide() {
+      this.dialog.hide();
+    }
+  };
+  frappe.ui.add_system_theme_switch_listener = () => {
+    frappe.ui.dark_theme_media_query.addEventListener("change", () => {
+      frappe.ui.set_theme();
+    });
+  };
+  frappe.ui.dark_theme_media_query = window.matchMedia("(prefers-color-scheme: dark)");
+  frappe.ui.set_theme = (theme) => {
+    const root = document.documentElement;
+    let theme_mode = root.getAttribute("data-theme-mode");
+    if (!theme) {
+      if (theme_mode === "automatic") {
+        theme = frappe.ui.dark_theme_media_query.matches ? "dark" : "light";
       }
-      this.parent.is_open = !this.parent.is_open;
-      if (this.parent.res.user_type == "guest") {
-        if (this.parent.is_open === false) {
-          this.$chat_bubble.attr({ title: this.open_title }).html(this.open_inner_html);
-          this.parent.hide_chat_widget();
-        } else {
-          this.$chat_bubble.attr({ title: this.closed_title }).html(this.closed_inner_html);
-          this.parent.show_chat_widget();
+    }
+    var obj = [{ key: "theme", data: theme || theme_mode }];
+    root.setAttribute("data-theme", theme || theme_mode);
+  };
+
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/ui/notifications/notifications.js
+  frappe.provide("frappe.search");
+  frappe.ui.Notifications = class Notifications {
+    constructor() {
+      this.tabs = {};
+      this.notification_settings = frappe.boot.notification_settings;
+      this.make();
+    }
+    make() {
+      this.dropdown = $(".navbar").find(".dropdown-notifications").removeClass("hidden");
+      this.dropdown_list = this.dropdown.find(".notifications-list");
+      this.header_items = this.dropdown_list.find(".header-items");
+      this.header_actions = this.dropdown_list.find(".header-actions");
+      this.body = this.dropdown_list.find(".notification-list-body");
+      this.panel_events = this.dropdown_list.find(".panel-events");
+      this.panel_notifications = this.dropdown_list.find(".panel-notifications");
+      this.user = frappe.session.user;
+      this.setup_headers();
+      this.setup_dropdown_events();
+    }
+    setup_headers() {
+      $(`<span class="notification-settings pull-right" data-action="go_to_settings">
+			${frappe.utils.icon("setting-gear")}
+		</span>`).on("click", (e) => {
+        e.stopImmediatePropagation();
+        this.dropdown.dropdown("hide");
+        frappe.set_route("Form", "Notification Settings", frappe.session.user);
+      }).appendTo(this.header_actions).attr("title", __("Notification Settings")).tooltip({ delay: { show: 600, hide: 100 }, trigger: "hover" });
+      $(`<span class="mark-all-read pull-right" data-action="mark_all_as_read">
+			${frappe.utils.icon("mark-as-read")}
+		</span>`).on("click", (e) => this.mark_all_as_read(e)).appendTo(this.header_actions).attr("title", __("Mark all as read")).tooltip({ delay: { show: 600, hide: 100 }, trigger: "hover" });
+      this.categories = [
+        {
+          label: __("Notifications"),
+          id: "notifications",
+          view: NotificationsView,
+          el: this.panel_notifications
+        },
+        {
+          label: __("Today's Events"),
+          id: "todays_events",
+          view: EventsView,
+          el: this.panel_events
         }
-      } else {
-        this.parent.show_chat_widget();
-      }
+      ];
+      let get_headers_html = (item) => {
+        let active = item.id == "notifications" ? "active" : "";
+        let html = `<li class="notifications-category ${active}"
+					id="${item.id}"
+					data-toggle="collapse"
+				>${item.label}</li>`;
+        return html;
+      };
+      let navitem = $(
+        `<ul class="notification-item-tabs nav nav-tabs" role="tablist"></ul>`
+      );
+      this.categories = this.categories.map((item) => {
+        item.$tab = $(get_headers_html(item));
+        item.$tab.on("click", (e) => {
+          e.stopImmediatePropagation();
+          this.switch_tab(item);
+        });
+        navitem.append(item.$tab);
+        return item;
+      });
+      navitem.appendTo(this.header_items);
+      this.categories.forEach((category) => {
+        this.make_tab_view(category);
+      });
+      this.switch_tab(this.categories[0]);
     }
-    setup_events() {
-      const me = this;
-      $("#chat-bubble, .chat-cross-button").on("click", () => {
-        me.portal_chat_icon();
+    switch_tab(item) {
+      this.categories.forEach((item2) => {
+        item2.$tab.removeClass("active");
+      });
+      item.$tab.addClass("active");
+      Object.keys(this.tabs).forEach((tab_name) => this.tabs[tab_name].hide());
+      this.tabs[item.id].show();
+    }
+    make_tab_view(item) {
+      let tabView = new item.view(
+        item.el,
+        this.dropdown,
+        this.notification_settings
+      );
+      this.tabs[item.id] = tabView;
+    }
+    mark_all_as_read(e) {
+      e.stopImmediatePropagation();
+      this.dropdown_list.find(".unread").removeClass("unread");
+      frappe.call(
+        "frappe.desk.doctype.notification_log.notification_log.mark_all_as_read"
+      );
+    }
+    setup_dropdown_events() {
+      this.dropdown.on("hide.bs.dropdown", (e) => {
+        let hide = $(e.currentTarget).data("closable");
+        $(e.currentTarget).data("closable", true);
+        return hide;
+      });
+      this.dropdown.on("click", (e) => {
+        $(e.currentTarget).data("closable", true);
       });
     }
   };
+  frappe.ui.notifications = {
+    get_notification_config() {
+      return frappe.xcall("frappe.desk.notifications.get_notification_info").then((r) => {
+        frappe.ui.notifications.config = r;
+        return r;
+      });
+    },
+    show_open_count_list(doctype) {
+      if (!frappe.ui.notifications.config) {
+        this.get_notification_config().then(() => {
+          this.route_to_list_with_filters(doctype);
+        });
+      } else {
+        this.route_to_list_with_filters(doctype);
+      }
+    },
+    route_to_list_with_filters(doctype) {
+      let filters = frappe.ui.notifications.config["conditions"][doctype];
+      if (filters && $.isPlainObject(filters)) {
+        if (!frappe.route_options) {
+          frappe.route_options = {};
+        }
+        $.extend(frappe.route_options, filters);
+      }
+      frappe.set_route("List", doctype);
+    }
+  };
+  var BaseNotificationsView = class {
+    constructor(wrapper, parent, settings) {
+      this.wrapper = wrapper;
+      this.parent = parent;
+      this.settings = settings;
+      this.max_length = 20;
+      this.container = $(`<div></div>`).appendTo(this.wrapper);
+      this.make();
+    }
+    show() {
+      this.container.show();
+    }
+    hide() {
+      this.container.hide();
+    }
+  };
+  var NotificationsView = class extends BaseNotificationsView {
+    make() {
+      this.notifications_icon = this.parent.find(".notifications-icon");
+      this.notifications_icon.attr("title", __("Notifications")).tooltip({ delay: { show: 600, hide: 100 }, trigger: "hover" });
+      this.setup_notification_listeners();
+      this.get_notifications_list(this.max_length).then((r) => {
+        if (!r.message)
+          return;
+        this.dropdown_items = r.message.notification_logs;
+        frappe.update_user_info(r.message.user_info);
+        this.render_notifications_dropdown();
+        if (this.settings.seen == 0 && this.dropdown_items.length > 0) {
+          this.toggle_notification_icon(false);
+        }
+      });
+    }
+    update_dropdown() {
+      this.get_notifications_list(1).then((r) => {
+        if (!r.message)
+          return;
+        let new_item = r.message.notification_logs[0];
+        frappe.update_user_info(r.message.user_info);
+        this.dropdown_items.unshift(new_item);
+        if (this.dropdown_items.length > this.max_length) {
+          this.container.find(".recent-notification").last().remove();
+          this.dropdown_items.pop();
+        }
+        this.insert_into_dropdown();
+      });
+    }
+    change_activity_status() {
+      if (this.container.find(".activity-status")) {
+        this.container.find(".activity-status").replaceWith(
+          `<a class="recent-item text-center text-muted"
+					href="/app/List/Notification Log">
+					<div class="full-log-btn">${__("View Full Log")}</div>
+				</a>`
+        );
+      }
+    }
+    mark_as_read(docname, $el) {
+      frappe.call(
+        "frappe.desk.doctype.notification_log.notification_log.mark_as_read",
+        {
+          docname
+        }
+      ).then(() => {
+        $el.removeClass("unread");
+      });
+    }
+    insert_into_dropdown() {
+      let new_item = this.dropdown_items[0];
+      let new_item_html = this.get_dropdown_item_html(new_item);
+      $(new_item_html).prependTo(this.container);
+      this.change_activity_status();
+    }
+    get_dropdown_item_html(field) {
+      let doc_link = this.get_item_link(field);
+      let read_class = field.read ? "" : "unread";
+      let message = field.subject;
+      let title = message.match(/<b class="subject-title">(.*?)<\/b>/);
+      message = title ? message.replace(title[1], frappe.ellipsis(strip_html(title[1]), 100)) : message;
+      let timestamp = frappe.datetime.comment_when(field.creation);
+      const is_chat_topic_notification = field.chat_topic == 1 && field.approved == 0 ? true : false;
+      let message_html = `<div class="message">
+			<div>${message}</div>
+			<div class="notification-timestamp text-muted"  ${is_chat_topic_notification ? `style='display:flex;justify-content:space-between'` : ``}>
+				${timestamp}
+				${is_chat_topic_notification ? `<div class='btn btn-primary approved-btn' data-chat-topic = '${field.email_content}' data-reciever = '${field.from_user}' data-doctype = '${field.document_type}' data-docname = '${field.document_name}'>Approved</div>` : ``}
+			</div>			
+		</div>`;
+      let user = field.from_user;
+      let user_avatar = frappe.avatar(user, "avatar-medium user-avatar");
+      let item_html = $(`<a class="recent-item notification-item ${read_class}"
+				href="${doc_link}"
+				data-name="${field.name}"
+			>
+				<div class="notification-body">
+					${user_avatar}
+					${message_html}
+				</div>
+				<div class="mark-as-read" title="${__("Mark as Read")}">
+				</div>
+			</a>`);
+      if (!field.read) {
+        let mark_btn = item_html.find(".mark-as-read");
+        mark_btn.tooltip({ delay: { show: 600, hide: 100 }, trigger: "hover" });
+        mark_btn.on("click", (e) => {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          this.mark_as_read(field.name, item_html);
+        });
+      }
+      item_html.on("click", () => {
+        !field.read && this.mark_as_read(field.name, item_html);
+        this.notifications_icon.trigger("click");
+      });
+      if (is_chat_topic_notification) {
+        item_html.find(".approved-btn").on("click", (e) => {
+          e.preventDefault();
+          const approve_btn = $(e.target);
+          const notification_log_name = $(e.target).closest("a").data("name");
+          $(e.target).remove();
+          approve_access_request(
+            frappe.session.user,
+            approve_btn.data("reciever"),
+            approve_btn.data("chat-topic"),
+            notification_log_name,
+            approve_btn.data("chat-topic"),
+            approve_btn.data("doctype"),
+            approve_btn.data("docname")
+          );
+          frappe.msgprint("Approved has been sent");
+        });
+      }
+      return item_html;
+    }
+    render_notifications_dropdown() {
+      if (this.settings && !this.settings.enabled) {
+        this.container.html(`<li class="recent-item notification-item">
+				<span class="text-muted">
+					${__("Notifications Disabled")}
+				</span></li>`);
+      } else {
+        if (this.dropdown_items.length) {
+          this.container.empty();
+          this.dropdown_items.forEach((field) => {
+            this.container.append(this.get_dropdown_item_html(field));
+          });
+          this.container.append(`<a class="list-footer"
+					href="/app/List/Notification Log">
+						<div class="full-log-btn">${__("See all Activity")}</div>
+					</a>`);
+        } else {
+          this.container.append(
+            $(`<div class="notification-null-state">
+					<div class="text-center">
+						<img src="/assets/frappe/images/ui-states/notification-empty-state.svg" alt="Generic Empty State" class="null-state">
+						<div class="title">${__("No New notifications")}</div>
+						<div class="subtitle">
+							${__("Looks like you haven\u2019t received any notifications.")}
+					</div></div></div>`)
+          );
+        }
+      }
+    }
+    get_notifications_list(limit) {
+      return frappe.call(
+        "frappe.desk.doctype.notification_log.notification_log.get_notification_logs",
+        { limit }
+      );
+    }
+    get_item_link(notification_doc) {
+      const link_doctype = notification_doc.document_type ? notification_doc.document_type : "Notification Log";
+      const link_docname = notification_doc.document_name ? notification_doc.document_name : notification_doc.name;
+      return frappe.utils.get_form_link(link_doctype, link_docname);
+    }
+    toggle_notification_icon(seen) {
+      this.notifications_icon.find(".notifications-seen").toggle(seen);
+      this.notifications_icon.find(".notifications-unseen").toggle(!seen);
+    }
+    toggle_seen(flag) {
+      frappe.call(
+        "frappe.desk.doctype.notification_settings.notification_settings.set_seen_value",
+        {
+          value: cint(flag),
+          user: frappe.session.user
+        }
+      );
+    }
+    setup_notification_listeners() {
+      frappe.realtime.on("notification", () => {
+        this.toggle_notification_icon(false);
+        this.update_dropdown();
+      });
+      frappe.realtime.on("indicator_hide", () => {
+        this.toggle_notification_icon(true);
+      });
+      this.parent.on("show.bs.dropdown", () => {
+        this.toggle_seen(true);
+        if (this.notifications_icon.find(".notifications-unseen").is(":visible")) {
+          this.toggle_notification_icon(true);
+          frappe.call(
+            "frappe.desk.doctype.notification_log.notification_log.trigger_indicator_hide"
+          );
+        }
+      });
+    }
+  };
+  var EventsView = class extends BaseNotificationsView {
+    make() {
+      let today = frappe.datetime.get_today();
+      frappe.xcall("frappe.desk.doctype.event.event.get_events", {
+        start: today,
+        end: today
+      }).then((event_list) => {
+        this.render_events_html(event_list);
+      });
+    }
+    render_events_html(event_list) {
+      let html = "";
+      if (event_list.length) {
+        let get_event_html = (event) => {
+          let time = __("All Day");
+          if (!event.all_day) {
+            let start_time = frappe.datetime.get_time(event.starts_on);
+            let days_diff = frappe.datetime.get_day_diff(
+              event.ends_on,
+              event.starts_on
+            );
+            let end_time = frappe.datetime.get_time(event.ends_on);
+            if (days_diff > 1) {
+              end_time = __("Rest of the day");
+            }
+            time = `${start_time} - ${end_time}`;
+          }
+          let particpants = "";
+          if (event.particpants) {
+            particpants = frappe.avatar_group(event.particpants, 3);
+          }
+          let location = "";
+          if (event.location) {
+            location = `, ${event.location}`;
+          }
+          return `<a class="recent-item event" href="/app/event/${event.name}">
+					<div class="event-border" style="border-color: ${event.color}"></div>
+					<div class="event-item">
+						<div class="event-subject">${event.subject}</div>
+						<div class="event-time">${time}${location}</div>
+						${particpants}
+					</div>
+				</a>`;
+        };
+        html = event_list.map(get_event_html).join("");
+      } else {
+        html = `
+				<div class="notification-null-state">
+					<div class="text-center">
+					<img src="/assets/frappe/images/ui-states/event-empty-state.svg" alt="Generic Empty State" class="null-state">
+					<div class="title">${__("No Upcoming Events")}</div>
+					<div class="subtitle">
+						${__("There are no upcoming events for you.")}
+				</div></div></div>
+			`;
+      }
+      this.container.html(html);
+    }
+  };
+  function approve_access_request(sender, reciever, chat_topic, notification_log, chat_topic_subject, reference_doctype, reference_docname) {
+    const res = frappe.call({
+      method: "clefincode_chat.api.api_1_2_1.api.approve_access_request",
+      args: {
+        sender,
+        reciever,
+        chat_topic,
+        notification_log,
+        chat_topic_subject,
+        reference_doctype,
+        reference_docname
+      }
+    });
+  }
+
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/views/communication.js
+  var import_localforage = __toESM(require_localforage());
+  frappe.last_edited_communication = {};
+  var separator_element = "<div>---</div>";
+  frappe.views.CommunicationComposer = class {
+    constructor(opts) {
+      $.extend(this, opts);
+      if (!this.doc) {
+        this.doc = this.frm && this.frm.doc || {};
+      }
+      this.make();
+    }
+    make() {
+      const me = this;
+      this.dialog = new frappe.ui.Dialog({
+        title: this.title || this.subject || __("New Email"),
+        no_submit_on_enter: true,
+        fields: this.get_fields(),
+        primary_action_label: __("Send"),
+        primary_action() {
+          me.send_action();
+        },
+        secondary_action_label: __("Discard"),
+        secondary_action() {
+          me.dialog.hide();
+          me.clear_cache();
+        },
+        size: "large",
+        minimizable: true,
+        static: true
+      });
+      $(this.dialog.$wrapper.find(".form-section").get(0)).addClass("to_section");
+      this.prepare();
+      this.dialog.show();
+      if (this.frm) {
+        $(document).trigger("form-typing", [this.frm]);
+      }
+    }
+    get_fields() {
+      const fields = [
+        {
+          label: __("To"),
+          fieldtype: "MultiSelect",
+          reqd: 0,
+          fieldname: "recipients"
+        },
+        {
+          fieldtype: "Button",
+          label: frappe.utils.icon("down"),
+          fieldname: "option_toggle_button",
+          click: () => {
+            this.toggle_more_options();
+          }
+        },
+        {
+          fieldtype: "Section Break",
+          hidden: 1,
+          fieldname: "more_options"
+        },
+        {
+          label: __("CC"),
+          fieldtype: "MultiSelect",
+          fieldname: "cc"
+        },
+        {
+          label: __("BCC"),
+          fieldtype: "MultiSelect",
+          fieldname: "bcc"
+        },
+        {
+          label: __("Email Template"),
+          fieldtype: "Link",
+          options: "Email Template",
+          fieldname: "email_template"
+        },
+        { fieldtype: "Section Break" },
+        {
+          label: __("Subject"),
+          fieldtype: "Data",
+          reqd: 1,
+          fieldname: "subject",
+          length: 524288
+        },
+        {
+          label: __("Message"),
+          fieldtype: "Text Editor",
+          fieldname: "content",
+          onchange: frappe.utils.debounce(this.save_as_draft.bind(this), 300)
+        },
+        {
+          fieldtype: "Button",
+          label: __("Add Signature"),
+          fieldname: "add_signature",
+          hidden: 1,
+          click: async () => {
+            let sender_email = this.dialog.get_value("sender") || "";
+            this.content_set = false;
+            await this.set_content(sender_email);
+          }
+        },
+        { fieldtype: "Section Break" },
+        {
+          label: __("Send me a copy"),
+          fieldtype: "Check",
+          fieldname: "send_me_a_copy",
+          default: frappe.boot.user.send_me_a_copy
+        },
+        {
+          label: __("Send Read Receipt"),
+          fieldtype: "Check",
+          fieldname: "send_read_receipt"
+        },
+        {
+          label: __("Attach Document Print"),
+          fieldtype: "Check",
+          fieldname: "attach_document_print"
+        },
+        {
+          label: __("Select Print Format"),
+          fieldtype: "Select",
+          fieldname: "select_print_format"
+        },
+        {
+          label: __("Select Languages"),
+          fieldtype: "Select",
+          fieldname: "language_sel"
+        },
+        { fieldtype: "Column Break" },
+        {
+          label: __("Select Attachments"),
+          fieldtype: "HTML",
+          fieldname: "select_attachments"
+        }
+      ];
+      const email_accounts = frappe.boot.email_accounts.filter((account) => {
+        return !in_list(["All Accounts", "Sent", "Spam", "Trash"], account.email_account) && account.enable_outgoing;
+      });
+      if (email_accounts.length) {
+        this.user_email_accounts = email_accounts.map(function(e) {
+          return e.email_id;
+        });
+        fields.unshift({
+          label: __("From"),
+          fieldtype: "Select",
+          reqd: 1,
+          fieldname: "sender",
+          options: this.user_email_accounts
+        });
+        if (this.user_email_accounts.length == 1) {
+          this["sender"] = this.user_email_accounts;
+        }
+      }
+      return fields;
+    }
+    toggle_more_options(show_options) {
+      show_options = show_options || this.dialog.fields_dict.more_options.df.hidden;
+      this.dialog.set_df_property("more_options", "hidden", !show_options);
+      const label = frappe.utils.icon(show_options ? "up-line" : "down");
+      this.dialog.get_field("option_toggle_button").set_label(label);
+    }
+    prepare() {
+      this.setup_multiselect_queries();
+      this.setup_subject_and_recipients();
+      this.setup_print_language();
+      this.setup_print();
+      this.setup_attach();
+      this.setup_email();
+      this.setup_email_template();
+      this.setup_last_edited_communication();
+      this.setup_add_signature_button();
+      this.set_values();
+    }
+    setup_add_signature_button() {
+      let has_sender = this.dialog.has_field("sender");
+      this.dialog.set_df_property("add_signature", "hidden", !has_sender);
+    }
+    setup_multiselect_queries() {
+      ["recipients", "cc", "bcc"].forEach((field) => {
+        this.dialog.fields_dict[field].get_data = () => {
+          const data = this.dialog.fields_dict[field].get_value();
+          const txt = data.match(/[^,\s*]*$/)[0] || "";
+          frappe.call({
+            method: "frappe.email.get_contact_list",
+            args: { txt },
+            callback: (r) => {
+              this.dialog.fields_dict[field].set_data(r.message);
+            }
+          });
+        };
+      });
+    }
+    setup_subject_and_recipients() {
+      this.subject = this.subject || "";
+      if (!this.forward && !this.recipients && this.last_email) {
+        this.recipients = this.last_email.sender;
+        this.cc = this.last_email.cc;
+        this.bcc = this.last_email.bcc;
+      }
+      if (!this.forward && !this.recipients) {
+        this.recipients = this.frm && this.frm.timeline.get_recipient();
+      }
+      if (!this.subject && this.frm) {
+        const last = this.frm.timeline.get_last_email();
+        if (last) {
+          this.subject = last.subject;
+          if (!this.recipients) {
+            this.recipients = last.sender;
+          }
+          if (strip(this.subject.toLowerCase().split(":")[0]) != "re") {
+            this.subject = __("Re: {0}", [this.subject]);
+          }
+        }
+        if (!this.subject) {
+          this.subject = this.frm.doc.name;
+          if (this.frm.meta.subject_field && this.frm.doc[this.frm.meta.subject_field]) {
+            this.subject = this.frm.doc[this.frm.meta.subject_field];
+          } else if (this.frm.meta.title_field && this.frm.doc[this.frm.meta.title_field]) {
+            this.subject = this.frm.doc[this.frm.meta.title_field];
+          }
+        }
+        const identifier = `#${this.frm.doc.name}`;
+        if (!cstr(this.subject).includes(identifier)) {
+          this.subject = `${this.subject} (${identifier})`;
+        }
+      }
+      if (this.frm && !this.recipients) {
+        this.recipients = this.frm.doc[this.frm.email_field];
+      }
+    }
+    setup_email_template() {
+      const me = this;
+      this.dialog.fields_dict["email_template"].df.onchange = () => {
+        const email_template = me.dialog.fields_dict.email_template.get_value();
+        if (!email_template)
+          return;
+        function prepend_reply(reply) {
+          if (me.reply_added === email_template)
+            return;
+          const content_field = me.dialog.fields_dict.content;
+          const subject_field = me.dialog.fields_dict.subject;
+          let content = content_field.get_value() || "";
+          content_field.set_value(`${reply.message}<br>${content}`);
+          subject_field.set_value(reply.subject);
+          me.reply_added = email_template;
+        }
+        frappe.call({
+          method: "frappe.email.doctype.email_template.email_template.get_email_template",
+          args: {
+            template_name: email_template,
+            doc: me.doc,
+            _lang: me.dialog.get_value("language_sel")
+          },
+          callback(r) {
+            prepend_reply(r.message);
+          }
+        });
+      };
+    }
+    setup_last_edited_communication() {
+      if (this.frm) {
+        this.doctype = this.frm.doctype;
+        this.key = this.frm.docname;
+      } else {
+        this.doctype = this.key = "Inbox";
+      }
+      if (this.last_email) {
+        this.key = this.key + ":" + this.last_email.name;
+      }
+      if (this.subject) {
+        this.key = this.key + ":" + this.subject;
+      }
+      this.dialog.on_hide = () => {
+        $.extend(this.get_last_edited_communication(true), this.dialog.get_values(true));
+        if (this.frm) {
+          $(document).trigger("form-stopped-typing", [this.frm]);
+        }
+      };
+    }
+    get_last_edited_communication(clear) {
+      if (!frappe.last_edited_communication[this.doctype]) {
+        frappe.last_edited_communication[this.doctype] = {};
+      }
+      if (clear || !frappe.last_edited_communication[this.doctype][this.key]) {
+        frappe.last_edited_communication[this.doctype][this.key] = {};
+      }
+      return frappe.last_edited_communication[this.doctype][this.key];
+    }
+    async set_values() {
+      for (const fieldname of ["recipients", "cc", "bcc", "sender"]) {
+        await this.dialog.set_value(fieldname, this[fieldname] || "");
+      }
+      const subject = frappe.utils.html2text(this.subject) || "";
+      await this.dialog.set_value("subject", subject);
+      await this.set_values_from_last_edited_communication();
+      await this.set_content();
+      if (this.frm && !this.is_a_reply && !this.content_set) {
+        const email_template = this.frm.meta.default_email_template || "";
+        await this.dialog.set_value("email_template", email_template);
+      }
+      for (const fieldname of ["email_template", "cc", "bcc"]) {
+        if (this.dialog.get_value(fieldname)) {
+          this.toggle_more_options(true);
+          break;
+        }
+      }
+    }
+    async set_values_from_last_edited_communication() {
+      if (this.message)
+        return;
+      const last_edited = this.get_last_edited_communication();
+      if (!last_edited.content)
+        return;
+      if (last_edited.email_template) {
+        const template_field = this.dialog.fields_dict.email_template;
+        await template_field.set_model_value(last_edited.email_template);
+        delete last_edited.email_template;
+      }
+      await this.dialog.set_values(last_edited);
+      this.content_set = true;
+    }
+    selected_format() {
+      return this.dialog.fields_dict.select_print_format.input.value || this.frm && this.frm.meta.default_print_format || "Standard";
+    }
+    get_print_format(format) {
+      if (!format) {
+        format = this.selected_format();
+      }
+      if (locals["Print Format"] && locals["Print Format"][format]) {
+        return locals["Print Format"][format];
+      } else {
+        return {};
+      }
+    }
+    setup_print_language() {
+      const fields = this.dialog.fields_dict;
+      this.lang_code = this.doc.language || this.get_print_format().default_print_language || frappe.boot.lang;
+      const me = this;
+      $(fields.language_sel.input).change(function() {
+        me.lang_code = this.value;
+      });
+      $(fields.language_sel.input).empty().add_options(frappe.get_languages());
+      if (this.lang_code) {
+        $(fields.language_sel.input).val(this.lang_code);
+      }
+    }
+    setup_print() {
+      const fields = this.dialog.fields_dict;
+      $(fields.attach_document_print.input).click(function() {
+        $(fields.select_print_format.wrapper).toggle($(this).prop("checked"));
+      });
+      $(fields.select_print_format.wrapper).toggle(false);
+      if (this.frm) {
+        const print_formats = frappe.meta.get_print_formats(this.frm.meta.name);
+        $(fields.select_print_format.input).empty().add_options(print_formats).val(print_formats[0]);
+      } else {
+        $(fields.attach_document_print.wrapper).toggle(false);
+      }
+    }
+    setup_attach() {
+      const fields = this.dialog.fields_dict;
+      const attach = $(fields.select_attachments.wrapper);
+      if (!this.attachments) {
+        this.attachments = [];
+      }
+      let args = {
+        folder: "Home/Attachments",
+        on_success: (attachment) => {
+          this.attachments.push(attachment);
+          this.render_attachment_rows(attachment);
+        }
+      };
+      if (this.frm) {
+        args = {
+          doctype: this.frm.doctype,
+          docname: this.frm.docname,
+          folder: "Home/Attachments",
+          on_success: (attachment) => {
+            this.frm.attachments.attachment_uploaded(attachment);
+            this.render_attachment_rows(attachment);
+          }
+        };
+      }
+      $(`
+			<label class="control-label">
+				${__("Select Attachments")}
+			</label>
+			<div class='attach-list'></div>
+			<p class='add-more-attachments'>
+				<button class='btn btn-xs btn-default'>
+					${frappe.utils.icon("small-add", "xs")}&nbsp;
+					${__("Add Attachment")}
+				</button>
+			</p>
+		`).appendTo(attach.empty());
+      attach.find(".add-more-attachments button").on("click", () => new frappe.ui.FileUploader(args));
+      this.render_attachment_rows();
+    }
+    render_attachment_rows(attachment) {
+      const select_attachments = this.dialog.fields_dict.select_attachments;
+      const attachment_rows = $(select_attachments.wrapper).find(".attach-list");
+      if (attachment) {
+        attachment_rows.append(this.get_attachment_row(attachment, true));
+      } else {
+        let files = [];
+        if (this.attachments && this.attachments.length) {
+          files = files.concat(this.attachments);
+        }
+        if (this.frm) {
+          files = files.concat(this.frm.get_files());
+        }
+        if (files.length) {
+          $.each(files, (i, f) => {
+            if (!f.file_name)
+              return;
+            if (!attachment_rows.find(`[data-file-name="${f.name}"]`).length) {
+              f.file_url = frappe.urllib.get_full_url(f.file_url);
+              attachment_rows.append(this.get_attachment_row(f));
+            }
+          });
+        }
+      }
+    }
+    get_attachment_row(attachment, checked) {
+      return $(`<p class="checkbox flex">
+			<label class="ellipsis" title="${attachment.file_name}">
+				<input
+					type="checkbox"
+					data-file-name="${attachment.name}"
+					${checked ? "checked" : ""}>
+				</input>
+				<span class="ellipsis">${attachment.file_name}</span>
+			</label>
+			&nbsp;
+			<a href="${attachment.file_url}" target="_blank" class="btn-linkF">
+				${frappe.utils.icon("link-url")}
+			</a>
+		</p>`);
+    }
+    setup_email() {
+      const fields = this.dialog.fields_dict;
+      if (this.attach_document_print) {
+        $(fields.attach_document_print.input).click();
+        $(fields.select_print_format.wrapper).toggle(true);
+      }
+      $(fields.send_me_a_copy.input).on("click", () => {
+        const val = fields.send_me_a_copy.get_value();
+        frappe.db.set_value("User", frappe.session.user, "send_me_a_copy", val);
+        frappe.boot.user.send_me_a_copy = val;
+      });
+    }
+    send_action() {
+      const me = this;
+      const btn = me.dialog.get_primary_btn();
+      const form_values = this.get_values();
+      if (!form_values)
+        return;
+      const selected_attachments = $.map(
+        $(me.dialog.wrapper).find("[data-file-name]:checked"),
+        function(element) {
+          return $(element).attr("data-file-name");
+        }
+      );
+      if (form_values.attach_document_print) {
+        me.send_email(
+          btn,
+          form_values,
+          selected_attachments,
+          null,
+          form_values.select_print_format || ""
+        );
+      } else {
+        me.send_email(btn, form_values, selected_attachments);
+      }
+    }
+    get_values() {
+      const form_values = this.dialog.get_values();
+      for (let i = 0, l = this.dialog.fields.length; i < l; i++) {
+        const df = this.dialog.fields[i];
+        if (df.is_cc_checkbox) {
+          if (form_values[df.fieldname]) {
+            form_values.cc = (form_values.cc ? form_values.cc + ", " : "") + df.fieldname;
+            form_values.bcc = (form_values.bcc ? form_values.bcc + ", " : "") + df.fieldname;
+          }
+          delete form_values[df.fieldname];
+        }
+      }
+      return form_values;
+    }
+    save_as_draft() {
+      if (this.dialog && this.frm) {
+        let message = this.dialog.get_value("content");
+        message = message.split(separator_element)[0];
+        import_localforage.default.setItem(this.frm.doctype + this.frm.docname, message).catch((e) => {
+          if (e) {
+            console.log(e);
+            console.warn(
+              "[Communication] IndexedDB is full. Cannot save message as draft"
+            );
+          }
+        });
+      }
+    }
+    clear_cache() {
+      this.delete_saved_draft();
+      this.get_last_edited_communication(true);
+    }
+    delete_saved_draft() {
+      if (this.dialog && this.frm) {
+        import_localforage.default.removeItem(this.frm.doctype + this.frm.docname).catch((e) => {
+          if (e) {
+            console.log(e);
+            console.warn(
+              "[Communication] IndexedDB is full. Cannot save message as draft"
+            );
+          }
+        });
+      }
+    }
+    send_email(btn, form_values, selected_attachments, print_html, print_format) {
+      const me = this;
+      this.dialog.hide();
+      if (!form_values.recipients) {
+        frappe.msgprint(__("Enter Email Recipient(s)"));
+        return;
+      }
+      if (!form_values.attach_document_print) {
+        print_html = null;
+        print_format = null;
+      }
+      if (this.frm && !frappe.model.can_email(this.doc.doctype, this.frm)) {
+        frappe.msgprint(__("You are not allowed to send emails related to this document"));
+        return;
+      }
+      return frappe.call({
+        method: "frappe.core.doctype.communication.email.make",
+        args: {
+          recipients: form_values.recipients,
+          cc: form_values.cc,
+          bcc: form_values.bcc,
+          subject: form_values.subject,
+          content: form_values.content,
+          doctype: me.doc.doctype,
+          name: me.doc.name,
+          send_email: 1,
+          print_html,
+          send_me_a_copy: form_values.send_me_a_copy,
+          print_format,
+          sender: form_values.sender,
+          sender_full_name: form_values.sender ? frappe.user.full_name() : void 0,
+          email_template: form_values.email_template,
+          attachments: selected_attachments,
+          _lang: me.lang_code,
+          read_receipt: form_values.send_read_receipt,
+          print_letterhead: me.is_print_letterhead_checked()
+        },
+        btn,
+        callback(r) {
+          if (!r.exc) {
+            frappe.utils.play_sound("email");
+            if (r.message["emails_not_sent_to"]) {
+              frappe.msgprint(
+                __("Email not sent to {0} (unsubscribed / disabled)", [
+                  frappe.utils.escape_html(r.message["emails_not_sent_to"])
+                ])
+              );
+            }
+            me.clear_cache();
+            if (me.frm) {
+              me.frm.reload_doc();
+            }
+            if (me.success) {
+              try {
+                me.success(r);
+              } catch (e) {
+                console.log(e);
+              }
+            }
+          } else {
+            frappe.msgprint(
+              __("There were errors while sending email. Please try again.")
+            );
+            if (me.error) {
+              try {
+                me.error(r);
+              } catch (e) {
+                console.log(e);
+              }
+            }
+          }
+        }
+      });
+    }
+    is_print_letterhead_checked() {
+      if (this.frm && $(this.frm.wrapper).find(".form-print-wrapper").is(":visible")) {
+        return $(this.frm.wrapper).find(".print-letterhead").prop("checked") ? 1 : 0;
+      } else {
+        return (frappe.model.get_doc(":Print Settings", "Print Settings") || { with_letterhead: 1 }).with_letterhead ? 1 : 0;
+      }
+    }
+    async set_content(sender_email) {
+      if (this.content_set)
+        return;
+      let message = this.message || "";
+      if (!message && this.frm) {
+        const { doctype, docname } = this.frm;
+        message = await import_localforage.default.getItem(doctype + docname) || "";
+      }
+      if (message) {
+        this.content_set = true;
+      }
+      message += await this.get_signature(sender_email || null);
+      if (this.is_a_reply && !this.reply_set) {
+        message += this.get_earlier_reply();
+      }
+      await this.dialog.set_value("content", message);
+    }
+    async get_signature(sender_email) {
+      let signature = frappe.boot.user.email_signature;
+      if (!signature) {
+        let filters = {
+          add_signature: 1
+        };
+        if (sender_email) {
+          filters["email_id"] = sender_email;
+        } else {
+          filters["default_outgoing"] = 1;
+        }
+        const email_accounts = await frappe.db.get_list("Email Account", {
+          filters,
+          fields: ["signature", "email_id"],
+          limit: 1
+        });
+        let filtered_email = null;
+        if (email_accounts.length) {
+          signature = email_accounts[0].signature;
+          filtered_email = email_accounts[0].email_id;
+        }
+        if (!sender_email && filtered_email) {
+          if (this.user_email_accounts && this.user_email_accounts.includes(filtered_email)) {
+            this.dialog.set_value("sender", filtered_email);
+          }
+        }
+      }
+      if (!signature)
+        return "";
+      if (!frappe.utils.is_html(signature)) {
+        signature = signature.replace(/\n/g, "<br>");
+      }
+      return "<br>" + signature;
+    }
+    get_earlier_reply() {
+      this.reply_set = false;
+      const last_email = this.last_email || this.frm && this.frm.timeline.get_last_email(true);
+      if (!last_email)
+        return "";
+      let last_email_content = last_email.original_comment || last_email.content;
+      last_email_content = this.html2text(last_email_content).replace(/\n/g, "<br>");
+      if (last_email_content.length > 20 * 1024) {
+        last_email_content += "<div>" + __("Message clipped") + "</div>" + last_email_content;
+        last_email_content = last_email_content.slice(0, 20 * 1024);
+      }
+      const communication_date = frappe.datetime.global_date_format(
+        last_email.communication_date || last_email.creation
+      );
+      this.reply_set = true;
+      return `
+			<div><br></div>
+			${separator_element || ""}
+			<p>
+			${__("On {0}, {1} wrote:", [communication_date, last_email.sender])}
+			</p>
+			<blockquote>
+			${last_email_content}
+			</blockquote>
+		`;
+    }
+    html2text(html) {
+      html = html.replace(/<\/div>/g, "<br></div>").replace(/<\/p>/g, "<br></p>").replace(/<br>/g, "\n");
+      const text = frappe.utils.html2text(html);
+      return text.replace(/\n{3,}/g, "\n\n");
+    }
+  };
+
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/form/footer/base_timeline.js
+  var BaseTimeline = class {
+    constructor(opts) {
+      Object.assign(this, opts);
+      this.make();
+    }
+    make() {
+      this.timeline_wrapper = $(`<div class="new-timeline">`);
+      this.wrapper = this.timeline_wrapper;
+      this.timeline_items_wrapper = $(`<div class="timeline-items">`);
+      this.timeline_actions_wrapper = $(`
+			<div class="timeline-items timeline-actions">
+				<div class="timeline-item">
+					<div class="timeline-dot"></div>
+					<div class="timeline-content action-buttons"></div>
+				</div>
+			</div>
+		`);
+      this.timeline_wrapper.append(this.timeline_actions_wrapper);
+      this.timeline_actions_wrapper.hide();
+      this.timeline_wrapper.append(this.timeline_items_wrapper);
+      this.parent.replaceWith(this.timeline_wrapper);
+      this.timeline_items = [];
+    }
+    refresh() {
+      this.render_timeline_items();
+    }
+    add_action_button(label, action, icon = null, btn_class = null) {
+      let icon_element = icon ? frappe.utils.icon(icon, "xs") : null;
+      this.timeline_actions_wrapper.show();
+      let action_btn = $(`<button class="btn btn-xs ${btn_class || "btn-default"} action-btn">
+			${icon_element}
+			${label}
+		</button>`);
+      action_btn.click(action);
+      this.timeline_actions_wrapper.find(".action-buttons").append(action_btn);
+      return action_btn;
+    }
+    render_timeline_items() {
+      this.timeline_items_wrapper.empty();
+      this.timeline_items = [];
+      this.doc_info = this.frm && this.frm.get_docinfo() || {};
+      let response = this.prepare_timeline_contents();
+      if (response instanceof Promise) {
+        response.then(() => {
+          this.timeline_items.sort(
+            (item1, item2) => new Date(item2.creation) - new Date(item1.creation)
+          );
+          this.timeline_items.forEach(this.add_timeline_item.bind(this));
+        });
+      } else {
+        this.timeline_items.sort(
+          (item1, item2) => new Date(item2.creation) - new Date(item1.creation)
+        );
+        this.timeline_items.forEach(this.add_timeline_item.bind(this));
+      }
+    }
+    prepare_timeline_contents() {
+    }
+    add_timeline_item(item, append_at_the_end = false) {
+      let timeline_item = this.get_timeline_item(item);
+      if (append_at_the_end) {
+        this.timeline_items_wrapper.append(timeline_item);
+      } else {
+        this.timeline_items_wrapper.prepend(timeline_item);
+      }
+      return timeline_item;
+    }
+    add_timeline_items(items, append_at_the_end = false) {
+      items.forEach((item) => this.add_timeline_item(item, append_at_the_end));
+    }
+    get_timeline_item(item) {
+      const timeline_item = $(`<div class="timeline-item">`);
+      timeline_item.attr({
+        "data-doctype": item.doctype,
+        "data-name": item.name
+      });
+      if (item.icon) {
+        timeline_item.append(`
+				<div class="timeline-badge" title='${item.title || frappe.utils.to_title_case(item.icon)}'>
+					${frappe.utils.icon(item.icon, item.icon_size || "md")}
+				</div>
+			`);
+      } else if (item.timeline_badge) {
+        timeline_item.append(item.timeline_badge);
+      } else {
+        timeline_item.append(`<div class="timeline-dot">`);
+      }
+      timeline_item.append(
+        `<div class="timeline-content ${item.is_card ? "frappe-card" : ""}">`
+      );
+      let timeline_content = timeline_item.find(".timeline-content");
+      timeline_content.append(item.content);
+      if (!item.hide_timestamp && !item.is_card) {
+        timeline_content.append(`<span> - ${comment_when(item.creation)}</span>`);
+      }
+      if (item.id) {
+        timeline_content.attr("id", item.id);
+      }
+      if (item.doctype == "ClefinCode Chat Topic") {
+        let indicator = "red";
+        if (item.topic_status == "Closed") {
+          indicator = "green";
+        }
+        timeline_content.append(`<span> - ${comment_when(item.creation)}</span>`);
+        timeline_content.append(
+          `<span class="indicator-pill ${indicator} ml-3">${item.topic_status}</span>`
+        );
+      }
+      return timeline_item;
+    }
+  };
+  var base_timeline_default = BaseTimeline;
+
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/form/footer/version_timeline_content_builder.js
+  function get_version_timeline_content(version_doc, frm) {
+    if (!version_doc.data)
+      return [];
+    const data = JSON.parse(version_doc.data);
+    if (data.comment) {
+      return [get_version_comment(version_doc, data.comment)];
+    }
+    let out = [];
+    let updater_reference_link = null;
+    let updater_reference = data.updater_reference;
+    if (!$.isEmptyObject(updater_reference)) {
+      let label = updater_reference.label || __("via {0}", [updater_reference.doctype]);
+      let { doctype, docname } = updater_reference;
+      if (doctype && docname) {
+        updater_reference_link = frappe.utils.get_form_link(doctype, docname, true, label);
+      } else {
+        updater_reference_link = label;
+      }
+    }
+    if (data.changed && data.changed.length) {
+      var parts = [];
+      data.changed.every(function(p) {
+        if (p[0] === "docstatus") {
+          if (p[2] === 1) {
+            let message = updater_reference_link ? __("{0} submitted this document {1}", [
+              get_user_link(version_doc),
+              updater_reference_link
+            ]) : __("{0} submitted this document", [get_user_link(version_doc)]);
+            out.push(get_version_comment(version_doc, message));
+          } else if (p[2] === 2) {
+            let message = updater_reference_link ? __("{0} cancelled this document {1}", [
+              get_user_link(version_doc),
+              updater_reference_link
+            ]) : __("{0} cancelled this document", [get_user_link(version_doc)]);
+            out.push(get_version_comment(version_doc, message));
+          }
+        } else {
+          const df = frappe.meta.get_docfield(frm.doctype, p[0], frm.docname);
+          if (df && !df.hidden) {
+            const field_display_status = frappe.perm.get_field_display_status(
+              df,
+              null,
+              frm.perm
+            );
+            if (field_display_status === "Read" || field_display_status === "Write") {
+              parts.push(
+                __("{0} from {1} to {2}", [
+                  __(df.label),
+                  format_content_for_timeline(p[1]),
+                  format_content_for_timeline(p[2])
+                ])
+              );
+            }
+          }
+        }
+        return parts.length < 3;
+      });
+      if (parts.length) {
+        let message;
+        if (updater_reference_link) {
+          message = __("{0} changed value of {1} {2}", [
+            get_user_link(version_doc),
+            parts.join(", "),
+            updater_reference_link
+          ]);
+        } else {
+          message = __("{0} changed value of {1}", [
+            get_user_link(version_doc),
+            parts.join(", ")
+          ]);
+        }
+        out.push(get_version_comment(version_doc, message));
+      }
+    }
+    if (data.row_changed && data.row_changed.length) {
+      let parts2 = [];
+      data.row_changed.every(function(row) {
+        row[3].every(function(p) {
+          var df = frm.fields_dict[row[0]] && frappe.meta.get_docfield(
+            frm.fields_dict[row[0]].grid.doctype,
+            p[0],
+            frm.docname
+          );
+          if (df && !df.hidden) {
+            var field_display_status = frappe.perm.get_field_display_status(
+              df,
+              null,
+              frm.perm
+            );
+            if (field_display_status === "Read" || field_display_status === "Write") {
+              parts2.push(
+                __("{0} from {1} to {2} in row #{3}", [
+                  frappe.meta.get_label(frm.fields_dict[row[0]].grid.doctype, p[0]),
+                  format_content_for_timeline(p[1]),
+                  format_content_for_timeline(p[2]),
+                  row[1]
+                ])
+              );
+            }
+          }
+          return parts2.length < 3;
+        });
+        return parts2.length < 3;
+      });
+      if (parts2.length) {
+        let message;
+        if (updater_reference_link) {
+          message = __("{0} changed values for {1} {2}", [
+            get_user_link(version_doc),
+            parts2.join(", "),
+            updater_reference_link
+          ]);
+        } else {
+          message = __("{0} changed values for {1}", [
+            get_user_link(version_doc),
+            parts2.join(", ")
+          ]);
+        }
+        out.push(get_version_comment(version_doc, message));
+      }
+    }
+    ["added", "removed"].forEach(function(key) {
+      if (data[key] && data[key].length) {
+        let parts2 = (data[key] || []).map(function(p) {
+          var df = frappe.meta.get_docfield(frm.doctype, p[0], frm.docname);
+          if (df && !df.hidden) {
+            var field_display_status = frappe.perm.get_field_display_status(
+              df,
+              null,
+              frm.perm
+            );
+            if (field_display_status === "Read" || field_display_status === "Write") {
+              return __(frappe.meta.get_label(frm.doctype, p[0]));
+            }
+          }
+        });
+        parts2 = parts2.filter(function(p) {
+          return p;
+        });
+        if (parts2.length) {
+          let message = "";
+          if (key === "added") {
+            message = __("added rows for {0}", [parts2.join(", ")]);
+          } else if (key === "removed") {
+            message = __("removed rows for {0}", [parts2.join(", ")]);
+          }
+          let version_comment = get_version_comment(version_doc, message);
+          let user_link = get_user_link(version_doc);
+          out.push(`${user_link} ${version_comment}`);
+        }
+      }
+    });
+    return out;
+  }
+  function get_version_comment(version_doc, text) {
+    if (text.includes("<a")) {
+      let version_comment = "";
+      let unlinked_content = "";
+      try {
+        text += "</>";
+        Array.from($(text)).forEach((element) => {
+          if ($(element).is("a")) {
+            version_comment += unlinked_content ? frappe.utils.get_form_link(
+              "Version",
+              version_doc.name,
+              true,
+              unlinked_content
+            ) : "";
+            unlinked_content = "";
+            version_comment += element.outerHTML;
+          } else {
+            unlinked_content += element.outerHTML || element.textContent;
+          }
+        });
+        if (unlinked_content) {
+          version_comment += frappe.utils.get_form_link(
+            "Version",
+            version_doc.name,
+            true,
+            unlinked_content
+          );
+        }
+        return version_comment;
+      } catch (e) {
+      }
+    }
+    return frappe.utils.get_form_link("Version", version_doc.name, true, text);
+  }
+  function format_content_for_timeline(content) {
+    content = frappe.ellipsis(content, 40) || '""';
+    content = frappe.utils.escape_html(content);
+    return content.bold();
+  }
+  function get_user_link(doc) {
+    const user = doc.owner;
+    const user_display_text = (frappe.user_info(user).fullname || "").bold();
+    return frappe.utils.get_form_link("User", user, true, user_display_text);
+  }
 
   // ../clefincode_chat/clefincode_chat/public/js/components/erpnext_chat_utils.js
   var moment1 = require_moment_timezone2();
-  function get_current_datetime() {
-    let current_time = moment1();
-    return current_time.format("YYYY-MM-DD HH:mm:ss");
-  }
-  function get_current_time() {
-    let current_time = moment1();
-    return current_time.format("h:mm A");
-  }
-  function get_t(dateString) {
-    let current_time = moment1(dateString);
-    return current_time.format("h:mm A");
-  }
   function get_time(dateString, time_zone = null) {
+    console.log("test", dateString, time_zone);
     const momentObj = moment1.tz(dateString, time_zone).format("hh:mm A");
     return momentObj;
   }
@@ -21699,290 +25312,6 @@ class Tooltip {
     if (overlay) {
       document.body.removeChild(overlay);
     }
-  }
-
-  // ../clefincode_chat/clefincode_chat/public/js/components/chat_portal_space.js
-  var ChatPortalSpace = class {
-    constructor(opts) {
-      this.$wrapper = opts.$wrapper;
-      this.profile = opts.profile;
-      this.chat_bubble = opts.chat_bubble;
-      this.is_first_message = 1;
-      this.setup();
-    }
-    async setup() {
-      this.$chatbot_space = $(document.createElement("div")).addClass(
-        "chatbot-space"
-      );
-      this.setup_header();
-      await this.setup_container();
-      await this.setup_actions();
-      this.setup_events();
-      this.setup_socket();
-    }
-    setup_header() {
-      const header_html = `
-      <div class='chat-header'>
-          <div class='chat-profile-info'>
-              <div class='chat-profile-name'>
-              ${erpnext_chat_app.res.chat_support_title}
-              <div class='online-circle' style="background:#28a745"></div>
-              </div>
-          </div>    
-  
-          <span class='close-chat-window' >${frappe.utils.icon(
-        "close",
-        "lg"
-      )}</span>
-      </div>
-  `;
-      this.$chatbot_space.append(header_html);
-    }
-    async setup_container() {
-      this.$chatbot_container = $(document.createElement("div")).addClass(
-        "chatbot-container"
-      );
-      this.$chatbot_space.append(this.$chatbot_container);
-      if (this.profile.is_verified == 0) {
-        const date_line = `
-        <div class='date-line'>
-            <div class="for_line">
-              <span class="left-line"></span>
-              <span class="between-lines">
-                Today
-              </span>
-              <span class="right-line"></span>
-            </div>
-        </div>`;
-        this.$chatbot_container.append(date_line);
-        const init_message = `
-          <div class="sender-message">
-            <div class="message-bubble">${erpnext_chat_app.res.welcome_message}</div>            
-          </div>
-          `;
-        this.$chatbot_container.append(init_message);
-      } else {
-        this.profile.respondent_user = await get_respondent_user(
-          this.profile.room
-        );
-        const res = await get_messages(this.profile.room);
-        await this.setup_messages(res);
-      }
-    }
-    async setup_actions() {
-      this.$chatbot_action = $(document.createElement("div")).addClass(
-        "chat-space-actions"
-      );
-      const chat_actions_html = `
-        <div class="message-section">         
-            <input class='form-control type-message' 
-            type='search' 
-            placeholder='${__("Type here")}'>
-            <span class='message-send-button'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="1.1rem" height="1.1rem" viewBox="0 0 24 24">
-                    <path d="M24 0l-6 22-8.129-7.239 7.802-8.234-10.458 7.227-7.215-1.754 24-12zm-15 16.668v7.332l3.258-4.431-3.258-2.901z"/>
-                </svg>
-            </span>
-        </div>
-        `;
-      this.$chatbot_action.html(chat_actions_html);
-      this.$chatbot_space.append(this.$chatbot_action);
-    }
-    setup_events() {
-      const me = this;
-      this.$chatbot_space.find(".close-chat-window").on("click", function() {
-        me.chat_bubble.portal_chat_icon();
-      });
-      this.$chatbot_action.find(".message-send-button").on("click", function() {
-        me.handle_send_message();
-      });
-      this.$chatbot_action.find(".type-message").keyup(function(e) {
-        if (e.which === 13) {
-          e.preventDefault();
-          if (!e.shiftKey) {
-            me.handle_send_message();
-          }
-        }
-      });
-    }
-    setup_socket() {
-      const me = this;
-      frappe.realtime.on(me.profile.room, function(res) {
-        if (res.realtime_type == "send_message") {
-          me.receive_message(res, get_t(res.send_date));
-        }
-      });
-    }
-    render() {
-      this.$wrapper.append(this.$chatbot_space);
-    }
-    async receive_message(res, time) {
-      let chat_type = "sender-message";
-      if (res.sender_email == this.profile.user_email) {
-        chat_type = "recipient-message";
-      }
-      this.$chatbot_container.append(
-        await this.make_message({
-          content: res.content,
-          time,
-          type: chat_type,
-          sender: res.user,
-          message_name: res.message_name,
-          message_template_type: res.message_template_type
-        })
-      );
-      scroll_to_bottom(this.$chatbot_container);
-      this.prevMessage = res;
-    }
-    async setup_messages(messages_list) {
-      await this.make_messages_html(messages_list);
-      this.$chatbot_container.html(this.message_html);
-      this.$chatbot_space.append(this.$chatbot_container);
-    }
-    async make_messages_html(messages_list) {
-      this.prevMessage = {};
-      this.message_html = "";
-      for (const element of messages_list) {
-        const date_line_html = this.make_date_line_html(element.send_date);
-        this.prevMessage = element;
-        this.message_html += date_line_html;
-        let message_type = "sender-message";
-        if (element.sender_email === this.profile.user_email) {
-          message_type = "recipient-message";
-        }
-        const message_content = await this.make_message({
-          content: element.content,
-          time: get_t(element.send_date),
-          type: message_type
-        });
-        this.message_html += message_content.prop("outerHTML");
-      }
-    }
-    make_date_line_html(dateObj) {
-      let result = `
-              <div class='date-line'>
-                  <div class="for_line">
-                    <span class="left-line"></span>
-                    <span class="between-lines">
-                      ${get_date_from_now(
-        dateObj,
-        "space",
-        this.profile.time_zone
-      )}
-                    </span>
-                    <span class="right-line"></span>
-                  </div>
-              </div>
-          `;
-      if ($.isEmptyObject(this.prevMessage)) {
-        return result;
-      } else if (is_date_change(
-        dateObj,
-        this.prevMessage.send_date,
-        this.profile.time_zone
-      )) {
-        return result;
-      } else {
-        return "";
-      }
-    }
-    async make_message(params) {
-      const { content, time, type } = params;
-      const $recipient_element = $(document.createElement("div")).addClass(type);
-      const $message_element = $(document.createElement("div")).addClass(
-        "message-bubble"
-      );
-      let $sanitized_content = __($("<div>").html(content));
-      $message_element.append($sanitized_content);
-      $recipient_element.append($message_element);
-      return $recipient_element;
-    }
-    async handle_send_message() {
-      if (this.$chatbot_space.find(".type-message").val().length == 0) {
-        return;
-      }
-      let content = this.$chatbot_space.find(".type-message").val();
-      this.is_link = null;
-      this.$chatbot_container.append(
-        await this.make_message({
-          content,
-          time: get_current_time(),
-          type: "recipient-message"
-        })
-      );
-      scroll_to_bottom(this.$chatbot_container);
-      this.$chatbot_action.find(".type-message").val("");
-      if (this.is_first_message == 1 && this.profile.is_verified == 0) {
-        this.is_first_message = 0;
-        const results = await create_guest_profile_and_channel(
-          content,
-          this.profile.user,
-          this.profile.user_email,
-          get_current_datetime()
-        );
-        localStorage.setItem("guest_token", results.token);
-        this.profile.token = results.token;
-        this.profile.room = results.room;
-        this.profile.respondent_user = results.respondent_user;
-        this.setup_socket();
-      } else {
-        const guest_message_info = {
-          content,
-          room: this.profile.room,
-          sender: this.profile.user,
-          sender_email: this.profile.user_email,
-          send_date: get_current_datetime(),
-          respondent_user: this.profile.respondent_user
-        };
-        await send_message2(guest_message_info);
-        scroll_to_bottom(this.$chatbot_container);
-      }
-    }
-  };
-  async function create_guest_profile_and_channel(content, sender, sender_email, creation_date) {
-    const res = await frappe.call({
-      method: "clefincode_chat.api.api_1_0_1.chat_portal.create_guest_profile_and_channel",
-      args: {
-        content,
-        sender,
-        sender_email,
-        creation_date
-      }
-    });
-    return await res.message.results[0];
-  }
-  async function send_message2(params) {
-    const { content, room, sender, sender_email, send_date, respondent_user } = params;
-    const res = await frappe.call({
-      method: "clefincode_chat.api.api_1_0_1.chat_portal.send",
-      args: {
-        content,
-        room,
-        sender,
-        sender_email,
-        send_date,
-        respondent_user
-      }
-    });
-    return await res.message;
-  }
-  async function get_messages(room) {
-    const res = await frappe.call({
-      method: "clefincode_chat.api.api_1_0_1.chat_portal.get_messages",
-      args: {
-        room
-      }
-    });
-    return await res.message;
-  }
-  async function get_respondent_user(room) {
-    const res = await frappe.call({
-      method: "clefincode_chat.api.api_1_0_1.chat_portal.get_respondent_user",
-      args: {
-        room
-      }
-    });
-    return await res.message;
   }
 
   // ../clefincode_chat/clefincode_chat/public/js/components/erpnext_chat_window.js
@@ -26362,7 +29691,7 @@ class Tooltip {
         }
         await this.get_all_sub_channels_for_contributor();
         if (this.profile.room_type == "Contributor") {
-          res = await get_messages2(
+          res = await get_messages(
             this.all_sub_channels_for_contributor,
             this.profile.user_email,
             this.profile.room_type,
@@ -26372,7 +29701,7 @@ class Tooltip {
             this.messages_offset
           );
         } else if (this.profile.room_type == "Topic") {
-          res = await get_messages2(
+          res = await get_messages(
             "",
             this.profile.user_email,
             this.profile.room_type,
@@ -26382,7 +29711,7 @@ class Tooltip {
             this.messages_offset
           );
         } else {
-          res = await get_messages2(
+          res = await get_messages(
             this.profile.room,
             this.profile.user_email,
             this.profile.room_type,
@@ -27131,7 +30460,7 @@ class Tooltip {
         sender,
         message_name = "",
         message_template_type = null,
-        get_messages: get_messages3 = null
+        get_messages: get_messages2 = null
       } = params;
       const $recipient_element = $(document.createElement("div")).addClass(type).attr("data-message-name", message_name);
       const $message_element = $(document.createElement("div")).addClass(
@@ -27294,7 +30623,7 @@ class Tooltip {
         );
       });
       if (type != "mention-message" && type != "info-message") {
-        if (!get_messages3) {
+        if (!get_messages2) {
           const send_date = await get_time_now(me.profile.user_email, 1);
           $recipient_element.append(
             `<div class='message-time'>${send_date}</div>`
@@ -28331,7 +31660,7 @@ class Tooltip {
           me.messages_offset += 10;
           let res;
           if (me.profile.room_type == "Contributor") {
-            res = await get_messages2(
+            res = await get_messages(
               me.all_sub_channels_for_contributor,
               me.profile.user_email,
               me.profile.room_type,
@@ -28341,7 +31670,7 @@ class Tooltip {
               me.messages_offset
             );
           } else if (me.profile.room_type == "Topic") {
-            res = await get_messages2(
+            res = await get_messages(
               "",
               me.profile.user_email,
               me.profile.room_type,
@@ -28351,7 +31680,7 @@ class Tooltip {
               me.messages_offset
             );
           } else {
-            res = await get_messages2(
+            res = await get_messages(
               me.profile.room,
               me.profile.user_email,
               me.profile.room_type,
@@ -28690,7 +32019,7 @@ class Tooltip {
       }
     }
   };
-  async function get_messages2(room, user_email, room_type, chat_topic_space, remove_date, limit, offset) {
+  async function get_messages(room, user_email, room_type, chat_topic_space, remove_date, limit, offset) {
     const res = await frappe.call({
       method: "clefincode_chat.api.api_1_2_1.api.get_messages",
       args: {
@@ -28862,433 +32191,685 @@ class Tooltip {
     return await res.message.results[0];
   }
 
-  // ../clefincode_chat/clefincode_chat/public/js/clefincode_chat.bundle.js
-  frappe.provide("frappe.ErpnextChat");
-  frappe.provide("frappe.ErpnextChat.settings");
-  frappe.ErpnextChat = class {
-    constructor() {
-      this.setup_app();
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/form/footer/form_timeline.js
+  var FormTimeline = class extends base_timeline_default {
+    make() {
+      super.make();
+      this.setup_timeline_actions();
+      this.render_timeline_items();
+      this.setup_activity_toggle();
     }
-    async setup_app() {
-      const token = localStorage.getItem("guest_token") || "";
-      const res = await get_settings(token);
-      this.res = res;
-      this.is_desk = "desk" in frappe;
-      if (res.user == "Administrator")
-        return;
-      if (res.user == "Guest") {
-        if (!res.enable_portal_support)
+    refresh() {
+      super.refresh();
+      this.frm.trigger("timeline_refresh");
+      this.setup_document_email_link();
+      this.setup_topic_click_event();
+    }
+    setup_timeline_actions() {
+      this.add_action_button(
+        __("New Email"),
+        () => this.compose_mail(),
+        "mail",
+        "btn-secondary-dark"
+      );
+      this.setup_new_event_button();
+    }
+    setup_new_event_button() {
+      if (this.frm.meta.allow_events_in_timeline) {
+        let create_event = () => {
+          const args = {
+            doc: this.frm.doc,
+            frm: this.frm,
+            recipients: this.get_recipient(),
+            txt: frappe.markdown(this.frm.comment_box.get_value())
+          };
+          return new frappe.views.InteractionComposer(args);
+        };
+        this.add_action_button(__("New Event"), create_event, "calendar");
+      }
+    }
+    setup_activity_toggle() {
+      let doc_info = this.doc_info || this.frm.get_docinfo();
+      let has_communications = () => {
+        let communications = doc_info.communications;
+        let comments = doc_info.comments;
+        return (communications || []).length || (comments || []).length;
+      };
+      let me = this;
+      if (has_communications()) {
+        this.timeline_wrapper.prepend(
+          `
+				<div class="timeline-item activity-toggle">
+					<div class="timeline-dot"></div>
+					<div class="timeline-content flex align-center">
+						<h4>${__("Activity")}</h4>
+						<nav class="nav nav-pills flex-row">
+							<a class="flex-sm-fill text-sm-center nav-link" data-only-communication="true">${__(
+            "Communication"
+          )}</a>
+							<a class="flex-sm-fill text-sm-center nav-link active">${__("All")}</a>
+						</nav>
+					</div>
+				</div>
+			`
+        ).find("a").on("click", function(e) {
+          e.preventDefault();
+          me.only_communication = $(this).data().onlyCommunication;
+          me.render_timeline_items();
+          $(this).tab("show");
+        });
+      }
+    }
+    setup_document_email_link() {
+      let doc_info = this.doc_info || this.frm.get_docinfo();
+      this.document_email_link_wrapper && this.document_email_link_wrapper.remove();
+      if (doc_info.document_email) {
+        const link = `<a class="document-email-link">${doc_info.document_email}</a>`;
+        const message = __("Add to this activity by mailing to {0}", [
+          link.bold()
+        ]);
+        this.document_email_link_wrapper = $(`
+				<div class="timeline-item">
+					<div class="timeline-dot"></div>
+					<div class="timeline-content">
+						<span>${message}</span>
+					</div>
+				</div>
+			`);
+        this.timeline_actions_wrapper.append(this.document_email_link_wrapper);
+        this.document_email_link_wrapper.find(".document-email-link").on("click", (e) => {
+          let text = $(e.target).text();
+          frappe.utils.copy_to_clipboard(text);
+        });
+      }
+    }
+    setup_topic_click_event() {
+      this.timeline_items_wrapper.find(`.topic-card`).on("click", function() {
+        const chat_topic = $(this).data("topic");
+        if (check_if_chat_window_open(chat_topic, "topic")) {
           return;
-        await this.create_chatbot();
-        frappe.socketio.init(res.socketio_port);
-        this.setup_socketio_mobile();
-        if (this.res.channel) {
-          const calculate_unread_messages_guest = await calculate_unread_messages_forGuest(this.res.channel);
-          if (calculate_unread_messages_guest.unread_messages > 0) {
-            $("#chat-notification-count").text(
-              calculate_unread_messages_guest.unread_messages
-            );
-          }
         }
-      } else
-        await this.create_app();
-      frappe.socketio.init(res.socketio_port);
-      if (this.res.is_admin) {
-        frappe.ErpnextChat.settings = {};
-        frappe.ErpnextChat.settings.unread_count = 0;
-        frappe.ErpnextChat.settings.unread_rooms = [];
-        frappe.ErpnextChat.settings.open_chat_space_rooms = [];
-        const calculate_unread_messages_per_rooms = await calculate_unread_messages(this.res.user_email);
-        frappe.ErpnextChat.settings.unread_count = calculate_unread_messages_per_rooms.unread_messages;
-        frappe.ErpnextChat.settings.unread_rooms = calculate_unread_messages_per_rooms.unread_rooms;
-        if (frappe.ErpnextChat.settings.unread_count > 0) {
-          $("#chat-notification-count").text(
-            frappe.ErpnextChat.settings.unread_count
-          );
-        } else {
-          $("#chat-notification-count").text("");
-        }
-        this.setup_socketio();
-        this.setup_socketio_mobile();
-      } else if (res.is_verified) {
-        this.chatbot_space = new ChatPortalSpace({
-          $wrapper: this.$chat_container,
-          chat_bubble: this.chat_bubble,
+        const chat_window = new ChatWindow({
           profile: {
-            is_verified: 1,
-            token,
-            user: res.user,
-            user_email: res.user_email,
-            room: res.channel,
-            chat_support_title: res.chat_support_title
+            chat_topic
           }
         });
-        this.chatbot_space.render();
+        new ChatSpace({
+          $wrapper: chat_window.$chat_window,
+          chat_topic,
+          chat_topic_subject: $(this).data("subject"),
+          chat_topic_channel: $(this).data("channel"),
+          is_private_topic: $(this).data("is-private"),
+          alternative_subject: $(this).data("alternative-subject"),
+          profile: {
+            is_admin: true,
+            user_email: frappe.session.user
+          }
+        });
+      });
+    }
+    render_timeline_items() {
+      super.render_timeline_items();
+      this.set_document_info();
+      frappe.utils.bind_actions_with_object(this.timeline_items_wrapper, this);
+    }
+    set_document_info() {
+      const creation = comment_when(this.frm.doc.creation);
+      let creation_message = frappe.utils.is_current_user(this.frm.doc.owner) ? __("You created this {0}", [creation], "Form timeline") : __(
+        "{0} created this {1}",
+        [this.get_user_link(this.frm.doc.owner), creation],
+        "Form timeline"
+      );
+      const modified = comment_when(this.frm.doc.modified);
+      let modified_message = frappe.utils.is_current_user(
+        this.frm.doc.modified_by
+      ) ? __("You edited this {0}", [modified], "Form timeline") : __(
+        "{0} edited this {1}",
+        [this.get_user_link(this.frm.doc.modified_by), modified],
+        "Form timeline"
+      );
+      if (this.frm.doc.route && cint(frappe.boot.website_tracking_enabled)) {
+        let route = this.frm.doc.route;
+        frappe.utils.get_page_view_count(route).then((res) => {
+          let page_view_count_message = __(
+            "{0} Page views",
+            [res.message],
+            "Form timeline"
+          );
+          this.add_timeline_item(
+            {
+              content: `${creation_message} \u2022 ${modified_message} \u2022 	${page_view_count_message}`,
+              hide_timestamp: true
+            },
+            true
+          );
+        });
       } else {
-        this.chatbot_space = new ChatPortalSpace({
-          $wrapper: this.$chat_container,
-          chat_bubble: this.chat_bubble,
-          profile: {
-            is_verified: 0,
-            token,
-            user: res.user,
-            user_email: res.user_email
-          }
-        });
-        this.chatbot_space.render();
-      }
-    }
-    async create_app() {
-      this.$app_element = $(document.createElement("div")).addClass("chat-app");
-      this.$chat_right_section = $(document.createElement("div")).addClass(
-        "chat_right_section"
-      );
-      this.$chat_left_section = $(document.createElement("div")).addClass("chat_left_section").hide();
-      this.$app_element.append(this.$chat_left_section);
-      this.$app_element.append(this.$chat_right_section);
-      this.$chat_bottom = $(document.createElement("div")).addClass(
-        "chat_bottom"
-      );
-      this.$app_element.append(this.$chat_bottom);
-      this.$app_element.append(`
-    <script>
-    const me = this;
-    var expand_me =function(parameter,attr,room_type, room, parent_channel, chat_topic) {
-        if(attr=='data-room'){
-            const chat_list_obj = erpnext_chat_app.chat_list
-            if(chat_list_obj){
-                const chat_room_item = chat_list_obj.chat_room_groups.find((element) => { return element[0] === parameter; });
-                if(chat_room_item){
-                    chat_room_item[1].expand = 1;            
-                    chat_room_item[1].$chat_room.click();
-                }
-            }else{
-                if(room_type == 'Contributor'){
-                    frappe.call({
-                        method:
-                          "clefincode_chat.api.api_1_2_1.api.mark_messsages_as_read",
-                        args: {
-                          user: me.frappe.session.user ,
-                          channel: null,
-                          parent_channel: parent_channel
-                        }
-                      });
-
-                    frappe.ErpnextChat.settings.unread_rooms = frappe.ErpnextChat.settings.unread_rooms.filter(item => item != parent_channel);
-                    frappe.ErpnextChat.settings.open_chat_space_rooms.push(parent_channel)
-                  } else{
-                    frappe.call({
-                        method:
-                          "clefincode_chat.api.api_1_2_1.api.mark_messsages_as_read",
-                        args: {
-                          user: me.frappe.session.user ,
-                          channel: room,
-                        }
-                      });
-                    frappe.ErpnextChat.settings.unread_rooms = frappe.ErpnextChat.settings.unread_rooms.filter(item => item != room);
-                    frappe.ErpnextChat.settings.open_chat_space_rooms.push(room)
-                  }
-              
-                  frappe.ErpnextChat.settings.unread_count -= 1;
-                  if(frappe.ErpnextChat.settings.unread_count <= 0){
-                    $('#chat-notification-count').text('');
-                  }else{
-                    $('#chat-notification-count').text(frappe.ErpnextChat.settings.unread_count);
-                }
-            }  
-            $(".chat-window[data-room|='"+parameter+"']").css("display", "block");
-            $(".minimized-chat[data-id|='"+parameter+"']").remove();
-        }else if(attr=='data-topic'){
-            $(".chat-window[data-topic|='"+parameter+"']").css("display", "block");
-            $(".minimized-chat[data-id|='"+parameter+"']").remove();
-        }
-        else{
-          $(".chat-window[data-contact|='"+parameter+"']").css("display", "block");
-          $(".minimized-chat[data-id|='"+parameter+"']").remove();
-        }
-        var screen_width = $("body").outerWidth()
-        var right_width = $(".chat_right_section").outerWidth()
-        var left_width = $(".chat_left_section").outerWidth()
-        if((right_width+left_width)>screen_width){
-          $( ".chat-window" ).each(function(index) {
-            if(attr=='data-room'){
-                
-                if ($(this).is("[data-room~='"+parameter+"']")){}
-                else{
-                    if($(this).css('display') == 'none'){
-        
-                    }
-                    else{
-                    $(".collapse-chat-window")[index].click();
-                    return false;
-                    }
-                }
-            }else if(attr=='data-topic'){
-                $(".collapse-chat-window")[index].click();
-                return false;
-            }else{
-            
-                if ($(this).is("[data-contact~='"+parameter+"']")){}
-                else{
-                    if($(this).css('display') == 'none'){}
-                    else{
-                        $(".collapse-chat-window")[index].click();
-                        return false;
-                    }
-                }
-            }
-
-          });
-        }
-      }
-    
-      var closeMe = function(parameter,attr) {
-
-        if(attr=='data-room'){
-          $(".chat-window[data-room|='"+parameter+"']").remove();
-        }else if(attr=='data-topic'){
-            $(".chat-window[data-topic|='"+parameter+"']").remove();
-        }else{
-          $(".chat-window[data-contact|='"+parameter+"']").remove();
-        }
-        $(".minimized-chat[data-id|='"+parameter+"']").remove();
-      }
-    <\/script>`);
-      this.$chat_container = $(document.createElement("div")).addClass(
-        "chat-container"
-      );
-      $("body").append(this.$app_element);
-      this.is_open = false;
-      this.$chat_element = $(document.createElement("div")).addClass("chat-element").hide();
-      this.$chat_element.append(
-        `<span class="chat-cross-button">${frappe.utils.icon(
-          "close",
-          "lg"
-        )}</span>`
-      );
-      this.$chat_element.append(this.$chat_container);
-      this.$chat_element.appendTo(this.$chat_right_section);
-      this.chat_bubble = new ChatBubble(this);
-      this.chat_bubble.render();
-      $("#chat-bubble").append(
-        '<span class="badge" id="chat-notification-count"></span>'
-      );
-      const navbar_icon_html = `
-        <li class='nav-item dropdown dropdown-notifications 
-        dropdown-mobile chat-navbar-icon' title="Show Chats" >
-          <img title="Show Chats" src="/assets/clefincode_chat/icons/clefincode_chat.svg" width="25px" height="25px">
-        <span class="badge" id="chat-notification-count"></span>
-        </li>
-    `;
-      if (this.is_desk === true) {
-        $("header.navbar > .container > .navbar-collapse > ul").prepend(
-          navbar_icon_html
-        );
-      }
-      this.setup_events();
-    }
-    async create_chatbot() {
-      this.$app_element = $(document.createElement("div")).addClass("chat-app");
-      this.$chat_right_section = $(document.createElement("div")).addClass(
-        "chat_right_section"
-      );
-      this.$chat_element = $(document.createElement("div")).addClass("chat-element").hide();
-      this.$chat_container = $(document.createElement("div")).addClass(
-        "chat-container"
-      );
-      this.$chat_element.append(this.$chat_container);
-      this.$chat_right_section.append(this.$chat_element);
-      this.$app_element.append(this.$chat_right_section);
-      $("body").append(this.$app_element);
-      this.is_open = false;
-      this.chat_bubble = new ChatBubble(this);
-      this.chat_bubble.render();
-      $(".chat-bubble").append(
-        '<span class="badge" id="chat-notification-count"></span>'
-      );
-      this.setup_events();
-    }
-    async show_chat_widget() {
-      this.is_open = true;
-      this.$chat_element.fadeIn(250);
-      if (this.$chat_element.find(".chatbot-container") && this.$chat_element.find(".chatbot-container").length == 1) {
-        this.$chat_element.find(".chatbot-container").animate(
+        this.add_timeline_item(
           {
-            scrollTop: this.$chat_element.find(".chatbot-container").prop("scrollHeight")
+            content: `${creation_message} \u2022 ${modified_message}`,
+            hide_timestamp: true
           },
-          "fast"
+          true
         );
       }
-      if (this.res.user === "Guest" && !this.res.channel) {
-        const updated_res = await get_settings(
-          localStorage.getItem("guest_token") || ""
+    }
+    prepare_timeline_contents() {
+      this.timeline_items.push(...this.get_communication_timeline_contents());
+      this.timeline_items.push(...this.get_chat_topics_timeline_contents());
+      this.timeline_items.push(...this.get_auto_messages_timeline_contents());
+      this.timeline_items.push(...this.get_comment_timeline_contents());
+      if (!this.only_communication) {
+        this.timeline_items.push(...this.get_view_timeline_contents());
+        this.timeline_items.push(...this.get_energy_point_timeline_contents());
+        this.timeline_items.push(...this.get_version_timeline_contents());
+        this.timeline_items.push(...this.get_share_timeline_contents());
+        this.timeline_items.push(...this.get_workflow_timeline_contents());
+        this.timeline_items.push(...this.get_like_timeline_contents());
+        this.timeline_items.push(...this.get_custom_timeline_contents());
+        this.timeline_items.push(...this.get_assignment_timeline_contents());
+        this.timeline_items.push(...this.get_attachment_timeline_contents());
+        this.timeline_items.push(...this.get_info_timeline_contents());
+        this.timeline_items.push(...this.get_milestone_timeline_contents());
+      }
+    }
+    get_user_link(user) {
+      const user_display_text = (frappe.user_info(user).fullname || "").bold();
+      return frappe.utils.get_form_link("User", user, true, user_display_text);
+    }
+    get_view_timeline_contents() {
+      let view_timeline_contents = [];
+      (this.doc_info.views || []).forEach((view) => {
+        const view_time = comment_when(view.creation);
+        let view_message = frappe.utils.is_current_user(view.owner) ? __("You viewed this {0}", [view_time], "Form timeline") : __(
+          "{0} viewed this {1}",
+          [this.get_user_link(view.owner), view_time],
+          "Form timeline"
         );
-        this.res.channel = updated_res.channel;
-      }
-      if (!this.res.is_admin && this.res.channel && this.res.user === "Guest") {
-        frappe.call({
-          method: "clefincode_chat.api.api_1_2_1.api.mark_messsages_as_read_for_guest",
-          args: {
-            token: localStorage.getItem("guest_token"),
-            channel: this.res.channel
-          }
+        view_timeline_contents.push({
+          creation: view.creation,
+          content: view_message,
+          hide_timestamp: true
         });
-      }
-      if (this.res.is_admin) {
-        this.chat_list = new ChatList({
-          $wrapper: this.$chat_container,
-          user: this.res.user,
-          user_email: this.res.user_email,
-          is_admin: this.res.is_admin,
-          time_zone: this.res.time_zone,
-          user_type: this.res.user_type,
-          is_limited_user: this.res.is_limited_user
-        });
-        this.chat_list.render();
-      }
-    }
-    hide_chat_widget() {
-      this.is_open = false;
-      this.$chat_element.fadeOut(300);
-      if (!this.res.is_admin && this.res.channel && this.res.user === "Guest") {
-        frappe.call({
-          method: "clefincode_chat.api.api_1_2_1.api.mark_messsages_as_read_for_guest",
-          args: {
-            token: localStorage.getItem("guest_token"),
-            channel: this.res.channel
-          }
-        });
-      }
-      if (this.res.is_admin) {
-        this.chat_list.is_open = 0;
-        this.chat_list.$chat_list.remove();
-        this.chat_list = void 0;
-      }
-    }
-    should_close(e) {
-      const chat_app = $(".chat-app");
-      const navbar = $(".navbar");
-      const modal = $(".modal");
-      return !chat_app.is(e.target) && chat_app.has(e.target).length === 0 && !navbar.is(e.target) && navbar.has(e.target).length === 0 && !modal.is(e.target) && modal.has(e.target).length === 0;
-    }
-    setup_events() {
-      const me = this;
-      $(".chat-navbar-icon").on("click", function() {
-        me.chat_bubble.disk_chat_icon();
       });
+      return view_timeline_contents;
     }
-    setup_socketio() {
-      const updateUnreadCount = () => {
-        frappe.ErpnextChat.settings.unread_count += 1;
-        $("#chat-notification-count").text(
-          frappe.ErpnextChat.settings.unread_count
-        );
+    get_communication_timeline_contents() {
+      let communication_timeline_contents = [];
+      let icon_set = {
+        Email: "mail",
+        Phone: "call",
+        Meeting: "calendar",
+        Other: "dot-horizontal"
       };
-      const addUnreadRoom = (room) => {
-        if (!frappe.ErpnextChat.settings.unread_rooms.includes(room)) {
-          frappe.ErpnextChat.settings.unread_rooms.push(room);
-        }
-      };
-      const playChatNotificationSound = () => {
-        const audio = new Audio(
-          "/assets/clefincode_chat/sounds/new-chat-notification.mp3"
-        );
-        audio.play().catch((error) => {
-          console.error("Error playing sound:", error);
+      (this.doc_info.communications || []).forEach((communication) => {
+        let medium = communication.communication_medium;
+        communication_timeline_contents.push({
+          icon: icon_set[medium],
+          icon_size: "sm",
+          creation: communication.creation,
+          is_card: true,
+          content: this.get_communication_timeline_content(communication),
+          doctype: "Communication",
+          id: `communication-${communication.name}`,
+          name: communication.name
         });
-      };
-      frappe.realtime.on("new_chat_notification", function(res) {
-        if (res.sender_email === frappe.session.user) {
-          return;
-        }
-        const isContributor = res.room_type === "Contributor";
-        const channel = isContributor ? res.parent_channel : res.room;
-        if (!frappe.ErpnextChat.settings.open_chat_space_rooms.includes(channel) && $(".chat-navbar-icon") && $(".chat-navbar-icon").css("display") != "none") {
-          playChatNotificationSound();
-          if (!frappe.ErpnextChat.settings.unread_rooms.includes(channel)) {
-            updateUnreadCount();
-            addUnreadRoom(channel);
-          }
-        }
       });
+      return communication_timeline_contents;
     }
-    setup_socketio_mobile() {
-      frappe.realtime.on("receive_message", function(res) {
-        var obj = [{ key: "receive_message", data: [JSON.stringify(res)] }];
+    get_chat_topics_timeline_contents() {
+      let chat_topics_timeline_contents = [];
+      (this.doc_info.chat_topics || []).forEach((topic) => {
+        chat_topics_timeline_contents.push({
+          icon: "tag",
+          icon_size: "md",
+          creation: topic.creation,
+          is_card: true,
+          content: topic.subject,
+          doctype: "ClefinCode Chat Topic",
+          id: `chat-topic-${topic.name}`,
+          name: topic.name,
+          topic_status: topic.topic_status
+        });
       });
-      frappe.realtime.on("guest_unread_update", async () => {
-        if (!this.is_open) {
-          const audio = new Audio(
-            "/assets/clefincode_chat/sounds/new-chat-notification.mp3"
-          );
-          audio.play().catch((error) => {
-            console.error("Error playing sound:", error);
+      return chat_topics_timeline_contents;
+    }
+    get_communication_timeline_content(doc, allow_reply = true) {
+      doc._url = frappe.utils.get_form_link("Communication", doc.name);
+      this.set_communication_doc_status(doc);
+      if (doc.attachments && typeof doc.attachments === "string") {
+        doc.attachments = JSON.parse(doc.attachments);
+      }
+      doc.owner = doc.sender;
+      doc.user_full_name = doc.sender_full_name;
+      doc.content = frappe.dom.remove_script_and_style(doc.content);
+      let communication_content = $(
+        frappe.render_template("timeline_message_box", { doc })
+      );
+      if (allow_reply) {
+        this.setup_reply(communication_content, doc);
+      }
+      return communication_content;
+    }
+    set_communication_doc_status(doc) {
+      let indicator_color = "red";
+      if (in_list(["Sent", "Clicked"], doc.delivery_status)) {
+        indicator_color = "green";
+      } else if (doc.delivery_status === "Sending") {
+        indicator_color = "orange";
+      } else if (in_list(["Opened", "Read"], doc.delivery_status)) {
+        indicator_color = "blue";
+      } else if (doc.delivery_status == "Error") {
+        indicator_color = "red";
+      }
+      doc._doc_status = doc.delivery_status;
+      doc._doc_status_indicator = indicator_color;
+    }
+    get_auto_messages_timeline_contents() {
+      let auto_messages_timeline_contents = [];
+      (this.doc_info.automated_messages || []).forEach((message) => {
+        auto_messages_timeline_contents.push({
+          icon: "notification",
+          icon_size: "sm",
+          creation: message.creation,
+          is_card: true,
+          content: this.get_communication_timeline_content(message, false),
+          doctype: "Communication",
+          name: message.name
+        });
+      });
+      return auto_messages_timeline_contents;
+    }
+    get_comment_timeline_contents() {
+      let comment_timeline_contents = [];
+      (this.doc_info.comments || []).forEach((comment) => {
+        comment_timeline_contents.push(this.get_comment_timeline_item(comment));
+      });
+      return comment_timeline_contents;
+    }
+    get_comment_timeline_item(comment) {
+      return {
+        icon: "small-message",
+        creation: comment.creation,
+        is_card: true,
+        doctype: "Comment",
+        id: `comment-${comment.name}`,
+        name: comment.name,
+        content: this.get_comment_timeline_content(comment)
+      };
+    }
+    get_comment_timeline_content(doc) {
+      doc.content = frappe.dom.remove_script_and_style(doc.content);
+      const comment_content = $(
+        frappe.render_template("timeline_message_box", { doc })
+      );
+      this.setup_comment_actions(comment_content, doc);
+      return comment_content;
+    }
+    get_version_timeline_contents() {
+      let version_timeline_contents = [];
+      (this.doc_info.versions || []).forEach((version) => {
+        const contents = get_version_timeline_content(version, this.frm);
+        contents.forEach((content) => {
+          version_timeline_contents.push({
+            creation: version.creation,
+            content
           });
-          if ($("#chat-notification-count").length === 0) {
-            $(".chat-bubble").append(
-              '<span class="badge" id="chat-notification-count"></span>'
-            );
-          }
-          if (this.res.user === "Guest") {
-            try {
-              if (!this.res.channel) {
-                const token = localStorage.getItem("guest_token") || "";
-                const res = await get_settings(token);
-                this.res = res;
-              }
-              if (this.res.channel) {
-                const result = await calculate_unread_messages_forGuest(
-                  this.res.channel
-                );
-                $("#chat-notification-count").text(result.unread_messages || "");
-              } else {
-                console.warn(
-                  "No channel found for guest after re-fetching settings."
-                );
-              }
-            } catch (error) {
-              console.error("Error calculating guest unread messages:", error);
+        });
+      });
+      return version_timeline_contents;
+    }
+    get_share_timeline_contents() {
+      let share_timeline_contents = [];
+      (this.doc_info.share_logs || []).forEach((share_log) => {
+        share_timeline_contents.push({
+          creation: share_log.creation,
+          content: share_log.content
+        });
+      });
+      return share_timeline_contents;
+    }
+    get_assignment_timeline_contents() {
+      let assignment_timeline_contents = [];
+      (this.doc_info.assignment_logs || []).forEach((assignment_log) => {
+        assignment_timeline_contents.push({
+          creation: assignment_log.creation,
+          content: assignment_log.content
+        });
+      });
+      return assignment_timeline_contents;
+    }
+    get_info_timeline_contents() {
+      let info_timeline_contents = [];
+      (this.doc_info.info_logs || []).forEach((info_log) => {
+        info_timeline_contents.push({
+          creation: info_log.creation,
+          content: `${this.get_user_link(info_log.owner)} ${info_log.content}`
+        });
+      });
+      return info_timeline_contents;
+    }
+    get_attachment_timeline_contents() {
+      let attachment_timeline_contents = [];
+      (this.doc_info.attachment_logs || []).forEach((attachment_log) => {
+        let is_file_upload = attachment_log.comment_type == "Attachment";
+        attachment_timeline_contents.push({
+          icon: is_file_upload ? "upload" : "delete",
+          icon_size: "sm",
+          creation: attachment_log.creation,
+          content: `${this.get_user_link(attachment_log.owner)} ${attachment_log.content}`
+        });
+      });
+      return attachment_timeline_contents;
+    }
+    get_milestone_timeline_contents() {
+      let milestone_timeline_contents = [];
+      (this.doc_info.milestones || []).forEach((milestone_log) => {
+        milestone_timeline_contents.push({
+          icon: "milestone",
+          creation: milestone_log.creation,
+          content: __("{0} changed {1} to {2}", [
+            this.get_user_link(milestone_log.owner),
+            frappe.meta.get_label(this.frm.doctype, milestone_log.track_field),
+            milestone_log.value.bold()
+          ])
+        });
+      });
+      return milestone_timeline_contents;
+    }
+    get_like_timeline_contents() {
+      let like_timeline_contents = [];
+      (this.doc_info.like_logs || []).forEach((like_log) => {
+        like_timeline_contents.push({
+          icon: "heart",
+          icon_size: "sm",
+          creation: like_log.creation,
+          content: __("{0} Liked", [this.get_user_link(like_log.owner)]),
+          title: "Like"
+        });
+      });
+      return like_timeline_contents;
+    }
+    get_workflow_timeline_contents() {
+      let workflow_timeline_contents = [];
+      (this.doc_info.workflow_logs || []).forEach((workflow_log) => {
+        workflow_timeline_contents.push({
+          icon: "branch",
+          icon_size: "sm",
+          creation: workflow_log.creation,
+          content: `${this.get_user_link(workflow_log.owner)} ${__(
+            workflow_log.content
+          )}`,
+          title: "Workflow"
+        });
+      });
+      return workflow_timeline_contents;
+    }
+    get_custom_timeline_contents() {
+      let custom_timeline_contents = [];
+      (this.doc_info.additional_timeline_content || []).forEach((custom_item) => {
+        custom_timeline_contents.push({
+          icon: custom_item.icon,
+          icon_size: "sm",
+          is_card: custom_item.is_card,
+          creation: custom_item.creation,
+          content: custom_item.content || frappe.render_template(
+            custom_item.template,
+            custom_item.template_data
+          )
+        });
+      });
+      return custom_timeline_contents;
+    }
+    get_energy_point_timeline_contents() {
+      let energy_point_timeline_contents = [];
+      (this.doc_info.energy_point_logs || []).forEach((log) => {
+        let timeline_badge = `
+			<div class="timeline-badge ${log.points > 0 ? "appreciation" : "criticism"} bold">
+				${log.points}
+			</div>`;
+        energy_point_timeline_contents.push({
+          timeline_badge,
+          creation: log.creation,
+          content: frappe.energy_points.format_form_log(log)
+        });
+      });
+      return energy_point_timeline_contents;
+    }
+    setup_reply(communication_box, communication_doc) {
+      let actions = communication_box.find(".custom-actions");
+      let reply = $(
+        `<a class="action-btn reply">${frappe.utils.icon("reply", "md")}</a>`
+      ).click(() => {
+        this.compose_mail(communication_doc);
+      });
+      let reply_all = $(
+        `<a class="action-btn reply-all">${frappe.utils.icon(
+          "reply-all",
+          "md"
+        )}</a>`
+      ).click(() => {
+        this.compose_mail(communication_doc, true);
+      });
+      actions.append(reply);
+      actions.append(reply_all);
+    }
+    compose_mail(communication_doc = null, reply_all = false) {
+      const args = {
+        doc: this.frm.doc,
+        frm: this.frm,
+        recipients: communication_doc && communication_doc.sender != frappe.session.user_email ? communication_doc.sender : this.get_recipient(),
+        is_a_reply: Boolean(communication_doc),
+        title: communication_doc ? __("Reply") : null,
+        last_email: communication_doc,
+        subject: communication_doc && communication_doc.subject
+      };
+      if (communication_doc && reply_all) {
+        args.cc = communication_doc.cc;
+        args.bcc = communication_doc.bcc;
+      }
+      if (this.frm.doctype === "Communication") {
+        args.message = "";
+        args.last_email = this.frm.doc;
+        args.recipients = this.frm.doc.sender;
+        args.subject = __("Re: {0}", [this.frm.doc.subject]);
+      } else {
+        const comment_value = frappe.markdown(this.frm.comment_box.get_value());
+        args.message = strip_html(comment_value) ? comment_value : "";
+      }
+      new frappe.views.CommunicationComposer(args);
+    }
+    get_recipient() {
+      if (this.frm.email_field) {
+        return this.frm.doc[this.frm.email_field];
+      } else {
+        return this.frm.doc.email_id || this.frm.doc.email || "";
+      }
+    }
+    setup_comment_actions(comment_wrapper, doc) {
+      let edit_wrapper = $(`<div class="comment-edit-box">`).hide();
+      let edit_box = this.make_editable(edit_wrapper);
+      let content_wrapper = comment_wrapper.find(".content");
+      let more_actions_wrapper = comment_wrapper.find(".more-actions");
+      if (frappe.model.can_delete("Comment") && (frappe.session.user == doc.owner || frappe.user.has_role("System Manager"))) {
+        const delete_option = $(`
+				<li>
+					<a class="dropdown-item">
+						${__("Delete")}
+					</a>
+				</li>
+			`).click(() => this.delete_comment(doc.name));
+        more_actions_wrapper.find(".dropdown-menu").append(delete_option);
+      }
+      let dismiss_button = $(`
+			<button class="btn btn-link action-btn">
+				${__("Dismiss")}
+			</button>
+		`).click(() => edit_button.toggle_edit_mode());
+      dismiss_button.hide();
+      edit_box.set_value(doc.content);
+      edit_box.on_submit = (value) => {
+        content_wrapper.empty();
+        content_wrapper.append(value);
+        edit_button.prop("disabled", true);
+        edit_box.quill.enable(false);
+        doc.content = value;
+        this.update_comment(doc.name, value).then(edit_button.toggle_edit_mode).finally(() => {
+          edit_button.prop("disabled", false);
+          edit_box.quill.enable(true);
+        });
+      };
+      content_wrapper.after(edit_wrapper);
+      let edit_button = $();
+      let current_user = frappe.session.user;
+      if (["Administrator", doc.owner].includes(current_user)) {
+        edit_button = $(
+          `<button class="btn btn-link action-btn">${__("Edit")}</a>`
+        ).click(() => {
+          edit_button.edit_mode ? edit_box.submit() : edit_button.toggle_edit_mode();
+        });
+      }
+      edit_button.toggle_edit_mode = () => {
+        edit_button.edit_mode = !edit_button.edit_mode;
+        edit_button.text(edit_button.edit_mode ? __("Save") : __("Edit"));
+        more_actions_wrapper.toggle(!edit_button.edit_mode);
+        dismiss_button.toggle(edit_button.edit_mode);
+        edit_wrapper.toggle(edit_button.edit_mode);
+        content_wrapper.toggle(!edit_button.edit_mode);
+      };
+      let actions_wrapper = comment_wrapper.find(".custom-actions");
+      actions_wrapper.append(edit_button);
+      actions_wrapper.append(dismiss_button);
+    }
+    make_editable(container) {
+      return frappe.ui.form.make_control({
+        parent: container,
+        df: {
+          fieldtype: "Comment",
+          fieldname: "comment",
+          label: "Comment"
+        },
+        enable_mentions: true,
+        render_input: true,
+        only_input: true,
+        no_wrapper: true
+      });
+    }
+    update_comment(name, content) {
+      return frappe.xcall("frappe.desk.form.utils.update_comment", { name, content }).then(() => {
+        frappe.utils.play_sound("click");
+      });
+    }
+    get_last_email(from_recipient) {
+      let last_email = null;
+      let communications = this.frm.get_docinfo().communications || [];
+      let email = this.get_recipient();
+      communications.sort((a, b) => a.creation > b.creation ? -1 : 1).forEach((c) => {
+        if (c.communication_type === "Communication" && c.communication_medium === "Email") {
+          if (from_recipient) {
+            if (c.sender.indexOf(email) !== -1) {
+              last_email = c;
+              return false;
             }
+          } else {
+            last_email = c;
+            return false;
           }
         }
       });
+      return last_email;
+    }
+    delete_comment(comment_name) {
+      frappe.confirm(__("Delete comment?"), () => {
+        return frappe.xcall("frappe.client.delete", {
+          doctype: "Comment",
+          name: comment_name
+        }).then(() => {
+          frappe.utils.play_sound("delete");
+        });
+      });
+    }
+    copy_link(ev) {
+      let doc_link = frappe.urllib.get_full_url(
+        frappe.utils.get_form_link(this.frm.doctype, this.frm.docname)
+      );
+      let element_id = $(ev.currentTarget).closest(".timeline-content").attr("id");
+      frappe.utils.copy_to_clipboard(`${doc_link}#${element_id}`);
     }
   };
-  async function get_settings(token) {
-    const res = await frappe.call({
-      type: "GET",
-      method: "clefincode_chat.api.api_1_2_1.api.get_settings",
-      args: {
-        token
+  var form_timeline_default = FormTimeline;
+
+  // ../clefincode_chat/clefincode_chat/public/js/frappe/form/footer/footer.js
+  frappe.ui.form.Footer = class FormFooter {
+    constructor(opts) {
+      $.extend(this, opts);
+      this.make();
+      this.make_comment_box();
+      this.make_timeline();
+      $(this.frm.wrapper).on("render_complete", () => {
+        this.refresh();
+      });
+    }
+    make() {
+      this.wrapper = $(frappe.render_template("form_footer", {})).appendTo(this.parent);
+      this.wrapper.find(".btn-save").click(() => {
+        this.frm.save("Save", null, this);
+      });
+    }
+    make_comment_box() {
+      this.frm.comment_box = frappe.ui.form.make_control({
+        parent: this.wrapper.find(".comment-box"),
+        render_input: true,
+        only_input: true,
+        enable_mentions: true,
+        df: {
+          fieldtype: "Comment",
+          fieldname: "comment"
+        },
+        on_submit: (comment) => {
+          if (strip_html(comment).trim() != "" || comment.includes("img")) {
+            this.frm.comment_box.disable();
+            frappe.xcall("frappe.desk.form.utils.add_comment", {
+              reference_doctype: this.frm.doctype,
+              reference_name: this.frm.docname,
+              content: comment,
+              comment_email: frappe.session.user,
+              comment_by: frappe.session.user_fullname
+            }).then((comment2) => {
+              let comment_item = this.frm.timeline.get_comment_timeline_item(comment2);
+              this.frm.comment_box.set_value("");
+              frappe.utils.play_sound("click");
+              this.frm.timeline.add_timeline_item(comment_item);
+              this.frm.sidebar.refresh_comments_count && this.frm.sidebar.refresh_comments_count();
+            }).finally(() => {
+              this.frm.comment_box.enable();
+            });
+          }
+        }
+      });
+    }
+    make_timeline() {
+      this.frm.timeline = new form_timeline_default({
+        parent: this.wrapper.find(".timeline"),
+        frm: this.frm
+      });
+    }
+    refresh() {
+      if (this.frm.doc.__islocal) {
+        this.parent.addClass("hide");
+      } else {
+        this.parent.removeClass("hide");
+        this.frm.timeline.refresh();
       }
-    });
-    return await res.message;
-  }
-  async function calculate_unread_messages(user) {
-    const res = await frappe.call({
-      type: "GET",
-      method: "clefincode_chat.api.api_1_2_1.api.calculate_unread_messages",
-      args: {
-        user
-      }
-    });
-    return await res.message;
-  }
-  async function calculate_unread_messages_forGuest(channel) {
-    const res = await frappe.call({
-      type: "GET",
-      method: "clefincode_chat.api.api_1_2_1.api.calculate_unread_messages_for_guest",
-      args: {
-        channel,
-        token: localStorage.getItem("guest_token") || ""
-      }
-    });
-    return await res.message;
-  }
-  $(function() {
-    window.erpnext_chat_app = new frappe.ErpnextChat();
-  });
+    }
+  };
 })();
+/*!
+    localForage -- Offline Storage, Improved
+    Version 1.10.0
+    https://localforage.github.io/localForage
+    (c) 2013-2017 Mozilla, Apache License 2.0
+*/
 /*!
  * Quill Editor v2.0.0-dev.3
  * https://quilljs.com/
@@ -29304,4 +32885,4 @@ class Tooltip {
 //! momentjs.com
 //! version : 0.5.43
 //! version : 2.29.4
-//# sourceMappingURL=clefincode_chat.bundle.YQTVH4WI.js.map
+//# sourceMappingURL=override.bundle.MDMQF5QM.js.map

@@ -405,11 +405,10 @@ def download_media(url , mime_type, message_type , file_name = None ):
 
 
 def format_html_string(input_string, button = None):
-    is_arabic = any(is_arabic_char(char) for char in input_string)
-
+    # is_arabic = any(is_arabic_char(char) for char in input_string)
+    is_arabic = False
     if is_arabic:
         return f'<div style="direction: rtl; text-align: right;"><p>{input_string}</p></div>'
-        
     else:
         if button:
             return f'<div class="approve-button-whatsapp" data-template="approve_button_whatsapp"><p>{str(input_string)}</p></div>'
@@ -488,8 +487,8 @@ def instagram_handle():
         return instagram_webhook_handle()
         
 
-    # try:
-    if 1 == 1:
+    try:
+    # if 1 == 1:
         message = frappe.local.form_dict
         log_webhook(message)
 
@@ -607,8 +606,8 @@ def instagram_handle():
         elif response == "remove":
             remove_group_member(sender_id, chat_channel)
 
-    # except Exception as e:
-    #     frappe.log_error(title="Instagram Webhook Error", message=str(e))
+    except Exception as e:
+        frappe.log_error(title="Instagram Webhook Error", message=str(e))
 # ==========================================================================================
 def fetch_instagram_username(sender_id):
     """Fetch the Instagram username using the Graph API."""
@@ -670,7 +669,7 @@ def validate_instagram_receiver_profile(receiver_id):
 
         # If not found, try in Instagram Profile
         profile = frappe.db.get_value(
-            "ClefinCode  Profile",
+            "ClefinCode Instagram Profile",
             {"name": receiver_id},
             "name" 
         )
@@ -739,9 +738,10 @@ def build_instagram_recipient_gateway(profile_id, instagram_profile_doc, sender_
 def manage_instagram_personal_channel(sender_id, receiver_id, chat_profile, instagram_profile_doc, messages):
     receiver_user_email = instagram_profile_doc.user
     channel_info = check_if_channel_exists(sender_id, receiver_id, "Personal")
-    
+    print("\n\n chanle info")
     if not channel_info:
         chat_channel = create_instagram_direct_channel(chat_profile, receiver_user_email, instagram_profile_doc, messages, sender_id)
+        print("\n\n chat channel 22", chat_channel)
         return [chat_channel , None]
     else:    
         chat_channel , pending_messages = channel_info 
@@ -749,15 +749,21 @@ def manage_instagram_personal_channel(sender_id, receiver_id, chat_profile, inst
 # ==========================================================================================
 def create_instagram_direct_channel(chat_profile, receiver_user_email, instagram_profile_doc, messages, sender_id):
     channel_name = get_profile_full_name(receiver_user_email) 
-
+    print("\n\n channel name", channel_name)
     recipients_list = [
         build_chat_recipients(get_profile_id(receiver_user_email)),
         build_instagram_recipient_gateway(chat_profile, instagram_profile_doc, sender_id)
     ]
+
+    print("\n\n recipients list", recipients_list)
     
+    print("\n\n messages", messages)
     message_content = messages[0].get("value", {}).get("message", {}).get("text", None)
     
+    print("\n\n message content", message_content)
+
     if message_content:
+        print("\n\n inside message content", message_content)
         return create_channel(
             get_profile_full_name(sender_id),
             json.dumps(recipients_list),
@@ -798,7 +804,8 @@ def create_instagram_direct_channel(chat_profile, receiver_user_email, instagram
 def instagram_webhook_handle():
     """Handles the initial webhook verification."""
     meta_challenge = frappe.form_dict.get("hub.challenge")
-    expected_token = frappe.db.get_single_value("ClefinCode Instagram Integration", "webhook_verify_token")
+    # expected_token = frappe.db.get_single_value("ClefinCode Instagram Integration", "webhook_verify_token")
+    expected_token = get_decrypted_password("Meta Settings", "Meta Settings", "webhook_verify_token")
 
     if frappe.form_dict.get("hub.verify_token") != expected_token:
         frappe.throw("Verify token does not match")
@@ -1000,7 +1007,7 @@ def fetch_messenger_username(sender_id):
 def get_messenger_sender_info(message):
     try:
         sender_id = message["value"]["sender"]["id"]
-        sender_profile_name = fetch_instagram_username(sender_id)
+        sender_profile_name = fetch_messenger_username(sender_id)
         return sender_id, sender_profile_name
 
     except KeyError as e:
@@ -1160,7 +1167,8 @@ def create_messenger_direct_channel(chat_profile, receiver_user_email, messenger
 def messenger_webhook_handle():
     """Handles the initial webhook verification."""
     meta_challenge = frappe.form_dict.get("hub.challenge")
-    expected_token = frappe.db.get_single_value("ClefinCode Facebook Messenger Integration", "webhook_verify_token")
+    # expected_token = frappe.db.get_single_value("ClefinCode Facebook Messenger Integration", "webhook_verify_token")
+    expected_token = get_decrypted_password("Meta Settings", "Meta Settings", "webhook_verify_token")
 
     if frappe.form_dict.get("hub.verify_token") != expected_token:
         frappe.throw("Verify token does not match")

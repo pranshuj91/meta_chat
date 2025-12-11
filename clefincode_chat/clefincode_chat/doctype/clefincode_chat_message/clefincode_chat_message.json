@@ -186,19 +186,21 @@
   },
   {
    "fieldname": "instagram_message_id",
-   "fieldtype": "Data",
-   "label": "Instagram Message Id"
+   "fieldtype": "Small Text",
+   "label": "Instagram Message Id",
+   "read_only": 1
   },
   {
    "fieldname": "messenger_message_id",
-   "fieldtype": "Data",
-   "label": "Messenger Message Id"
+   "fieldtype": "Small Text",
+   "label": "Messenger Message Id",
+   "read_only": 1
   }
  ],
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-13 13:26:27.013053",
+ "modified": "2025-12-08 22:31:20.744197",
  "modified_by": "Administrator",
  "module": "ClefinCode Chat",
  "name": "ClefinCode Chat Message",
